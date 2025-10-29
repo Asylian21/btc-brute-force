@@ -523,20 +523,20 @@ This toolkit is designed for maximum performance within the constraints of stand
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                         Main Thread                          │
-└────────────┬────────────────────────────────────────────┬────┘
-             │                                            │
-             ├──> [Stats Reporter] ──> Console (10s)     │
-             │                                            │
-             ├──> [Match Writer] ──> output.txt          │
-             │         ▲                                  │
-             │         │ matchChan                        │
-             │         │                                  │
-             ├──> [Worker 1] ──┐                         │
-             ├──> [Worker 2] ──┤                         │
-             ├──> [Worker 3] ──┼──> Shared Match Chan   │
-             └──> [Worker N] ──┘                         │
-                                                          │
-                   Load address DB ──────────────────────┘
+└────────────┬─────────────────────────────────────────────────┘
+             │
+             ├──> [Stats Reporter] ──> Console (10s)
+             │
+             ├──> [Match Writer] ──> output.txt
+             │         ▲
+             │         │ matchChan
+             │         │
+             ├──> [Worker 1] ──┐
+             ├──> [Worker 2] ──┤
+             ├──> [Worker 3] ──┼──> Shared Match Chan
+             └──> [Worker N] ──┘
+                   │
+                   └──> Load address DB
 ```
 
 ### Source Code Documentation
