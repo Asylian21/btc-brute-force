@@ -225,7 +225,7 @@ The scanner needs a local list of Bitcoin addresses that currently (or recently)
 
 **Where to get address data:**
 
-Public snapshots of Bitcoin addresses and their balances exist. One well-known community source is **addresses.loyce.club**, which provides regularly updated dumps of the Bitcoin UTXO set.
+Public snapshots of Bitcoin addresses and their balances exist. One well-known community source is **[addresses.loyce.club](http://addresses.loyce.club/)**, which provides regularly updated dumps of the Bitcoin UTXO set.
 
 **Important:**
 
@@ -249,7 +249,7 @@ For beginners, here's a simple step-by-step guide:
 
 **Step 1: Download an address snapshot**
 
-Visit a source like addresses.loyce.club and download the latest Bitcoin address snapshot. These files are typically large (several GB compressed).
+Visit a source like [addresses.loyce.club](http://addresses.loyce.club/) and download the latest Bitcoin address snapshot. These files are typically large (several GB compressed).
 
 **Step 2: Filter for P2PKH addresses**
 
