@@ -1,0 +1,172 @@
+# ============================================================================
+# Bitcoin Bruteforce Project - .gitignore
+# ============================================================================
+
+# ============================================================================
+# Compiled Binaries (Go executables)
+# ============================================================================
+bitcoin-wallet-bruteforce-offline
+bitcoin-wallet-bruteforce-offline.exe
+bitcoin-wallet-bruteforce
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# ============================================================================
+# Go Build Artifacts
+# ============================================================================
+*.test
+*.out
+/vendor/
+go.work
+
+# ============================================================================
+# Python Cache and Bytecode
+# ============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+
+# Python virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# ============================================================================
+# Address Databases (Large files, potentially sensitive)
+# ============================================================================
+# Bitcoin address lists (can be multi-GB)
+*addresses*.txt
+target-*.txt
+funded-*.txt
+
+# But keep the starter address file for convenience
+!attack-addresses-p2pkh.txt
+
+# But keep example/template files if you create them
+!example-addresses.txt
+
+# ============================================================================
+# Output Files (Program results)
+# ============================================================================
+output.txt
+matches.txt
+found.txt
+results*.txt
+test-output.txt
+test-*.txt
+
+# ============================================================================
+# Logs
+# ============================================================================
+*.log
+logs/
+
+# ============================================================================
+# Operating System Files
+# ============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================================================
+# IDE and Editor Files
+# ============================================================================
+# VSCode
+.vscode/
+*.code-workspace
+
+# GoLand / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.*.sw?
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+
+# ============================================================================
+# Temporary and Backup Files
+# ============================================================================
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+
+# ============================================================================
+# Testing and Development
+# ============================================================================
+test/
+tests/
+*_test.txt
+benchmark/
+profile*.out
+cpu.prof
+mem.prof
+
+# ============================================================================
+# Credentials and Secrets (just in case)
+# ============================================================================
+*.key
+*.pem
+.env
+.env.local
+secrets.txt
+private*.txt
+
+# ============================================================================
+# Archives (Don't commit large compressed files)
+# ============================================================================
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.gz
+*.bz2
+*.xz
+
+# ============================================================================
+# Database dumps
+# ============================================================================
+*.sql
+*.db
+*.sqlite
+*.sqlite3
+
