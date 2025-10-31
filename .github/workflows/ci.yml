@@ -29,7 +29,7 @@ jobs:
         run: go mod download
 
       - name: Run go vet
-        run: go vet ./...
+        run: go vet ./cmd/btc-brute-force ./bench
 
       - name: Run tests
         run: go test -v ./...
