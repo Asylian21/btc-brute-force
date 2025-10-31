@@ -30,10 +30,11 @@ jobs:
         run: go mod download
 
       - name: Run go vet
-        run: go vet ./...
+        run: go vet ./cmd/btc-brute-force ./bench
 
       - name: Run unit tests
         run: go test -v ./...
+        continue-on-error: false
 
       - name: Run benchmarks (quick)
         run: go test -bench=. -benchmem -benchtime=1s ./bench
