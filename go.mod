@@ -10,7 +10,7 @@
 //	Declares all external packages required for Bitcoin address generation
 //	and cryptographic operations.
 
-module btcgen
+module github.com/Asylian21/btc-brute-force
 
 // Minimum Go version required
 go 1.22
@@ -62,11 +62,6 @@ require (
 	// Not directly used in our code
 	github.com/btcsuite/btcd v0.20.1-beta // indirect
 
-	// Additional cryptographic primitives
-	// Purpose: Used internally by btcsuite libraries
-	// Not directly imported in our code, but required by dependencies
-	golang.org/x/crypto v0.17.0 // indirect
-
 	// SECP256k1 curve implementation (lower level)
 	// Used by btcec/v2 for elliptic curve operations
 	// Provides the mathematical primitives for ECDSA
@@ -76,6 +71,11 @@ require (
 	// Used by sha256-simd to detect SIMD capabilities
 	// Determines which optimized implementation to use
 	github.com/klauspost/cpuid/v2 v2.2.3 // indirect
+
+	// Additional cryptographic primitives
+	// Purpose: Used internally by btcsuite libraries
+	// Not directly imported in our code, but required by dependencies
+	golang.org/x/crypto v0.17.0 // indirect
 
 	// Operating system interface
 	// Low-level system calls used by cryptographic libraries

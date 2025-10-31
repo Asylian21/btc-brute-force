@@ -8,11 +8,18 @@
 bitcoin-wallet-bruteforce-offline
 bitcoin-wallet-bruteforce-offline.exe
 bitcoin-wallet-bruteforce
+btc-brute-force
+btc-brute-force.exe
+btc-brute-force-v*
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+
+# Build directories
+bin/
+dist/
 
 # ============================================================================
 # Go Build Artifacts
