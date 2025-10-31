@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Test
+    name: Test ${{ matrix.go-version }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -35,8 +35,7 @@ jobs:
         run: go test -v ./...
 
       - name: Run benchmarks (quick)
-        run: go test -bench=. -benchmem -benchtime=1s ./bench
-        continue-on-error: true
+        run: go test -bench=. -benchmem -benchtime=1s ./bench || true
 
   lint:
     name: Lint
