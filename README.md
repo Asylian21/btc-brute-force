@@ -207,6 +207,12 @@ Contributions welcome for:
 
 See [COMPARISON.md](COMPARISON.md) for project philosophy and contribution guidelines.
 
+## Related Article
+
+📖 **[Brute Force vs Reality: What My Bitcoin Brute Force Really Shows](https://medium.com/@asylian21/brute-force-vs-reality-what-my-bitcoin-brute-force-really-shows-67872323d6bf)**
+
+An in-depth Medium article explaining the mathematics, benchmarks, and reality-check behind this toolkit.
+
 ## 🙏 Acknowledgments
 
 - **btcsuite** – Bitcoin libraries for Go
