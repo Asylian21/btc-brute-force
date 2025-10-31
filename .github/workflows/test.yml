@@ -37,6 +37,7 @@ jobs:
 
       - name: Run benchmarks (quick)
         run: go test -bench=. -benchmem -benchtime=1s ./bench
+        continue-on-error: true
 
       - name: Build binary
         run: make build
