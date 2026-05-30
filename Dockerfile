@@ -14,7 +14,7 @@ RUN go mod download
 COPY . .
 
 # Build the binary with CGO disabled for static linking
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/btc-brute-force ./cmd/btc-brute-force
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/btc-brute-force ./bitcoin-wallet-bruteforce-offline.go
 
 # Runtime stage: Use minimal alpine image
 FROM alpine:3.20

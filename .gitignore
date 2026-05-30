@@ -50,6 +50,7 @@ ENV/
 # ============================================================================
 # Bitcoin address lists (can be multi-GB)
 *addresses*.txt
+list-*.txt
 target-*.txt
 funded-*.txt
 
@@ -64,6 +65,7 @@ funded-*.txt
 # ============================================================================
 output.txt
 matches.txt
+example-matches.txt
 found.txt
 results*.txt
 test-output.txt
@@ -74,6 +76,15 @@ test-*.txt
 # ============================================================================
 *.log
 logs/
+
+# ============================================================================
+# Checkpoints (runtime resume state, regenerated every 10s)
+# ============================================================================
+checkpoint.json
+checkpoint.json.tmp
+example-checkpoint.json
+example-checkpoint.json.tmp
+*.checkpoint.json
 
 # ============================================================================
 # Operating System Files
