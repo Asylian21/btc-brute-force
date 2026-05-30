@@ -7,25 +7,36 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
+
+func buildTestBinary(t *testing.T, binaryPath string) {
+	t.Helper()
+
+	root := filepath.Join("..", "..")
+	mainGo := filepath.Join(root, "bitcoin-wallet-bruteforce-offline.go")
+	ldflags := "-s -w"
+	if runtime.GOOS == "darwin" {
+		ldflags += " -linkmode=external"
+	}
+
+	cmd := exec.Command("go", "build", "-ldflags="+ldflags, "-o", binaryPath, mainGo)
+	if err := cmd.Run(); err != nil {
+		t.Skipf("Skipping integration test: failed to build binary: %v", err)
+	}
+}
 
 // TestBinaryExecution tests that the binary can be executed
 func TestBinaryExecution(t *testing.T) {
 	// Build the binary first
 	tmpDir := t.TempDir()
 	binaryPath := filepath.Join(tmpDir, "btc-brute-force-test")
-
-	root := filepath.Join("..", "..")
-	mainGo := filepath.Join(root, "bitcoin-wallet-bruteforce-offline.go")
-	cmd := exec.Command("go", "build", "-ldflags=-s -w -linkmode=external", "-o", binaryPath, mainGo)
-	if err := cmd.Run(); err != nil {
-		t.Skipf("Skipping integration test: failed to build binary: %v", err)
-	}
+	buildTestBinary(t, binaryPath)
 
 	// Test invalid arguments (should exit with code 1)
-	cmd = exec.Command(binaryPath, "invalid", "args")
+	cmd := exec.Command(binaryPath, "invalid", "args")
 	if err := cmd.Run(); err == nil {
 		t.Error("Expected error for invalid arguments, got nil")
 	}
@@ -36,13 +47,7 @@ func TestBinaryWithMockData(t *testing.T) {
 	// Build the binary
 	buildDir := t.TempDir()
 	binaryPath := filepath.Join(buildDir, "btc-brute-force-test")
-
-	root := filepath.Join("..", "..")
-	mainGo := filepath.Join(root, "bitcoin-wallet-bruteforce-offline.go")
-	cmd := exec.Command("go", "build", "-ldflags=-s -w -linkmode=external", "-o", binaryPath, mainGo)
-	if err := cmd.Run(); err != nil {
-		t.Skipf("Skipping integration test: failed to build binary: %v", err)
-	}
+	buildTestBinary(t, binaryPath)
 
 	// Create temporary directory for test files
 	tmpDir := t.TempDir()
@@ -56,7 +61,7 @@ func TestBinaryWithMockData(t *testing.T) {
 	}
 
 	// Run binary with timeout (it runs indefinitely, so we'll kill it)
-	cmd = exec.Command(binaryPath, "1", outputFile, addressFile)
+	cmd := exec.Command(binaryPath, "1", outputFile, addressFile)
 	cmd.Dir = tmpDir
 
 	// Start the process

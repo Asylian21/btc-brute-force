@@ -55,7 +55,8 @@ test:
 # Run go vet
 vet:
 	@echo "Running go vet..."
-	@go vet ./...
+	@go vet . ./bench
+	@go vet -tags=integration ./cmd/btc-brute-force
 
 # Run tests with coverage
 test-coverage:

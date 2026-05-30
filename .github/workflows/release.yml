@@ -45,7 +45,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          go build -ldflags="-s -w" -o ${{ matrix.binary_name }} ./cmd/btc-brute-force
+          go build -ldflags="-s -w" -o ${{ matrix.binary_name }} ./bitcoin-wallet-bruteforce-offline.go
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

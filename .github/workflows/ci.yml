@@ -29,13 +29,17 @@ jobs:
         run: go mod download
 
       - name: Run go vet
-        run: go vet ./cmd/btc-brute-force ./bench
+        run: |
+          go vet . ./bench
+          go vet -tags=integration ./cmd/btc-brute-force
 
       - name: Run tests
-        run: go test -v ./...
+        run: |
+          go test -v . ./bench
+          go test -tags=integration -v ./cmd/btc-brute-force
 
       - name: Run benchmarks (quick)
-        run: go test -bench=. -benchmem -benchtime=1s ./bench || true
+        run: go test -bench=. -benchmem -benchtime=1s . ./bench || true
 
   lint:
     name: Lint
