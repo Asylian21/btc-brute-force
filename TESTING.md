@@ -6,17 +6,19 @@ This document describes the test suite for the Bitcoin Address-Collision Researc
 
 The project includes comprehensive tests at multiple levels:
 
-### Unit Tests (`cmd/btc-brute-force/main_test.go`)
+### Unit Tests (`bitcoin-wallet-bruteforce-offline_test.go`)
 
 Tests individual functions and components:
 
-- **TestReadAddresses**: Tests loading addresses from file
-- **TestReadAddressesEmptyFile**: Tests handling of empty files
-- **TestReadAddressesNonexistentFile**: Tests error handling for missing files
-- **TestGenerateKeyAndAddress**: Tests key and address generation
-- **TestGenerateKeyAndAddressMultiple**: Tests uniqueness of generated addresses
-- **TestGenerateKeyAndAddressValidFormat**: Tests address format validation
+- **TestKeyStreamMatchesReference**: Verifies the batched EC walk against an independent scalar-multiplication reference
+- **TestKeyStreamContinuity**: Verifies consecutive batches continue at the exact next private-key offset
+- **TestReadTargetHashes**: Tests loading P2PKH addresses as raw Hash160 targets
+- **TestReadTargetHashesEmptyFile**: Tests handling of empty files
+- **TestReadTargetHashesNonexistentFile**: Tests error handling for missing files
+- **TestGenerateKeyAndHash160**: Tests random key and Hash160 generation
+- **TestGenerateKeyAndHash160Unique**: Tests uniqueness across repeated generated hashes
 - **TestBufferPool**: Tests buffer pool functionality
+- **TestRIPEMD160Hash32**: Verifies the specialized RIPEMD160 hot path against the streaming reference
 
 ### Integration Tests (`cmd/btc-brute-force/integration_test.go`)
 
@@ -27,32 +29,38 @@ Tests full binary execution (requires `-tags=integration`):
 
 ### Benchmark Tests (`bench/bench_test.go`)
 
-Performance benchmarks:
+Educational component benchmarks:
 
 - **BenchmarkHashPipeline**: Full address generation pipeline
 - **BenchmarkKeyGeneration**: Key generation only
 - **BenchmarkHash160**: Hash160 operation
 - **BenchmarkBase58Encode**: Base58 encoding
 
+### Production Hot-Path Benchmarks (`bitcoin-wallet-bruteforce-offline_test.go`)
+
+- **BenchmarkKeyStreamPerKey**: Batched EC walk plus Hash160, amortized per key
+- **BenchmarkGenerateKeyAndHash160**: Direct fresh-key baseline
+- **BenchmarkRIPEMD160Hash32**: Specialized fixed-input RIPEMD160
+- **BenchmarkRIPEMD160Streaming**: Streaming RIPEMD160 reference
+
 ## Running Tests
 
 ### Run All Unit Tests
 
 ```bash
-go test ./...
+make test
 ```
 
 ### Run Tests Verbosely
 
 ```bash
-go test -v ./...
+go test -ldflags="-s -w -linkmode=external" -v .
 ```
 
 ### Run Tests with Coverage
 
 ```bash
-go test -cover ./...
-go test -coverprofile=coverage.out ./...
+make test-coverage
 go tool cover -html=coverage.out -o coverage.html
 ```
 
@@ -66,7 +74,7 @@ go test -tags=integration ./cmd/btc-brute-force -v
 
 ```bash
 # Quick benchmarks (1 second)
-go test -bench=. -benchmem -benchtime=1s ./bench
+go test -ldflags="-s -w -linkmode=external" -bench=. -benchmem -benchtime=1s . ./bench/...
 
 # Longer benchmarks (5 seconds)
 make bench
@@ -103,8 +111,10 @@ Current coverage: ~20% (focused on core functions)
 
 Coverage breakdown:
 
-- `readAddresses`: ✅ Fully tested
-- `generateKeyAndAddress`: ✅ Fully tested
+- `readTargetHashes`: ✅ Tested
+- `generateKeyAndHash160`: ✅ Tested
+- `keyStream.nextBatch`: ✅ Tested against reference scalar multiplication
+- `ripemd160Hash32`: ✅ Tested against the streaming reference implementation
 - `bufferPool`: ✅ Tested
 - `worker`: ⚠️ Not tested (infinite loop, requires signal handling)
 - `matchWriter`: ⚠️ Not tested (requires goroutine orchestration)
@@ -158,6 +168,7 @@ All tests must pass before merging:
 make vet      # Static analysis
 make test     # Unit tests
 make bench    # Benchmarks (quick)
+make build    # Release binary build
 ```
 
 ## Troubleshooting
@@ -167,6 +178,7 @@ make bench    # Benchmarks (quick)
 - Check Go version matches CI (`go version`)
 - Run `go mod tidy` to sync dependencies
 - Clear test cache: `go clean -testcache`
+- On macOS 15+ with Go < 1.24, use `make test` so the required external link mode is applied.
 
 ### Integration tests skip
 
