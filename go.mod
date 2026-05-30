@@ -65,7 +65,7 @@ require (
 	// SECP256k1 curve implementation (lower level)
 	// Used by btcec/v2 for elliptic curve operations
 	// Provides the mathematical primitives for ECDSA
-	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1
 
 	// CPU feature detection
 	// Used by sha256-simd to detect SIMD capabilities
@@ -75,7 +75,7 @@ require (
 	// Additional cryptographic primitives
 	// Purpose: Used internally by btcsuite libraries
 	// Not directly imported in our code, but required by dependencies
-	golang.org/x/crypto v0.17.0 // indirect
+	golang.org/x/crypto v0.17.0
 
 	// Operating system interface
 	// Low-level system calls used by cryptographic libraries
