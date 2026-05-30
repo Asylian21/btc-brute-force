@@ -1,14 +1,16 @@
-# Bitcoin Address-Collision Research Toolkit
+# Bitcoin Address-Collision Research Toolkit 🔬
 
 A fast, offline Go research tool for studying Bitcoin P2PKH address generation, benchmark reality, and the beautiful absurdity of the 2^160 search space.
 
 This project is not a wallet cracker. It is a lab bench. You can run it, measure it, push the CPU hard, and still walk away with the same conclusion Bitcoin has relied on for years: the math is doing its job.
 
+No cloud account, no API key, no hand-waving. Just local code, local CPU, and very large numbers.
+
 ## Safety and Ethics
 
 This toolkit is for education, performance research, and cryptographic intuition. Do not use it to attempt unauthorized access to funds or accounts. Brute forcing Bitcoin addresses is computationally infeasible, and trying to access assets you do not control is likely illegal.
 
-The point is to make the impossible measurable. That is useful science. It is also a good antidote to internet mythology.
+The point is to make the impossible measurable. That is useful science, and a useful antidote to overconfident claims about "secret brute-force methods."
 
 ## Who This Is For
 
@@ -24,7 +26,7 @@ Turn "Bitcoin brute force is impossible" into a live demo with real numbers, che
 
 Study a CPU-heavy Go workload with batched elliptic-curve addition, Montgomery batch inversion, SIMD SHA256, a specialized RIPEMD160 hot path, allocation-free worker buffers, checkpointing, and atomic counters.
 
-## Quick Start
+## Quick Start ⚡
 
 ### The "I Just Want To See It Run" Demo
 
@@ -44,7 +46,7 @@ Stop it with `Ctrl+C`. The demo writes `example-checkpoint.json`, so continuing 
 make resume-example
 ```
 
-The demo is intentionally tiny. It exists so users can verify the program, not so anyone has to download a giant address database before seeing a single line of output.
+The demo is intentionally tiny: 20 addresses, zero drama. It exists so users can verify the program before downloading any serious target list.
 
 ### Normal Usage
 
@@ -102,20 +104,20 @@ docker run --rm -v $(pwd):/data btc-brute-force 8 /data/output.txt /data/attack-
 
 ## What Changed in This Version
 
-This version is a major performance and usability pass. The old loop was conceptually simple: generate a fresh random key, derive an address, Base58 compare, repeat until the universe gets bored.
+This version is a major performance and usability pass. The old loop was conceptually simple: generate a fresh random key, derive an address, Base58 compare, repeat until the calendar gives up.
 
 The new loop is built like a proper research hot path:
 
 1. **Batched secp256k1 walk**: each worker does one scalar multiplication for its starting point, then advances through consecutive keys with affine point addition (`P + iG`) using a precomputed table of generator multiples.
 2. **Montgomery batch inversion**: the expensive field inversion in affine addition is amortized across a 2,048-key batch.
-3. **Hash160 target set**: target addresses are decoded once at startup and stored as raw 20-byte Hash160 keys; Base58 encoding runs only if a generated hash matches.
+3. **Hash160 target set**: target addresses are decoded once at startup and stored as raw 20-byte Hash160 keys; Base58 encoding runs only on the rare match path.
 4. **Specialized RIPEMD160**: Hash160 always feeds RIPEMD160 with a 32-byte SHA256 digest, so the hot path uses a single-block RIPEMD160 implementation verified against `golang.org/x/crypto/ripemd160`.
 5. **Resume support**: long runs now write a checkpoint every 10 seconds and on clean interrupt, so progress can continue without losing segment positions.
 6. **macOS build fix**: the Makefile uses external link mode on Darwin to avoid the `missing LC_UUID load command` issue seen with older Go toolchains on macOS 15+.
 
 The goal is not to make Bitcoin brute force practical. The goal is to make the benchmark honest: remove avoidable overhead, measure the real bottlenecks, and still show that the search space wins by an absurd margin.
 
-## Resuming (Checkpoints)
+## Resuming (Checkpoints) 💾
 
 Each worker walks its own private-key sequence starting from a random base scalar
 (`base, base+1, base+2, ...`). This is why the per-worker sample keys in the stats
@@ -174,9 +176,11 @@ Notes:
 - The checkpoint is written atomically (temp file + rename) and is git-ignored (it's runtime state).
 - A worker resumes by re-doing at most the last in-flight batch, so no keys are skipped.
 
-## Benchmarks
+## Benchmarks 📊
 
 Performance depends on CPU architecture, Go version, thermal state, worker count, and target-set size. The short version: the optimized code is fast enough to be interesting, and the Bitcoin address space is still astronomically larger.
+
+**10M keys/sec is impressive. 2^160 remains undefeated.**
 
 See [BENCHMARKS.md](BENCHMARKS.md) for raw output and methodology.
 
@@ -198,7 +202,7 @@ The older per-key scalar-multiplication benchmark is still useful for teaching t
 2. **Build** — `make build` (on macOS 15+, the Makefile uses `-linkmode=external` so binaries run under dyld; Go 1.24+ fixes this without external linking).
 3. **Long runs** — optional `BTC_BRUTE_GC=400` reduces GC pauses during sustained execution.
 4. **Input format** — provide clean P2PKH address lists; invalid or non-P2PKH lines are skipped during startup parsing.
-5. **Measure sustained rates** — trust the 10-second stats lines and longer benchmarks more than startup output.
+5. **Measure sustained rates** — trust the 10-second stats lines and longer benchmarks more than startup output. CPUs, like researchers, need a warm-up period.
 
 Run benchmarks yourself:
 
@@ -218,9 +222,9 @@ The optimized worker follows this pipeline:
 4. **Lookup Hash160**: compare the 20-byte hash against the target set in O(1).
 5. **On match only**: reconstruct the private key, encode the matching P2PKH address, print it, and append `<private_key_hex>:<address>` to the output file.
 
-The whole loop runs completely **offline**. No RPC node, no API, no network magic. Just math, fans, and existential scale.
+The whole loop runs completely **offline**. No RPC node, no API, no network magic. Just math, fans, and scale.
 
-**Not a wallet. Not a puzzle solver.** This is a clean Go toolkit for education, reproducible benchmarks, and reality-checking brute-force limits.
+**Not a wallet. Not a puzzle solver. Not a miracle recovery tool.** This is a clean Go toolkit for education, reproducible benchmarks, and reality-checking brute-force limits.
 
 See [COMPARISON.md](COMPARISON.md) for detailed positioning and comparison with similar projects.
 
@@ -237,13 +241,13 @@ This toolkit focuses on **education and benchmarking**, not cracking wallets or 
 
 See [COMPARISON.md](COMPARISON.md) for a detailed comparison table.
 
-## FAQ
+## FAQ ❓
 
 ### Why doesn't brute force work?
 
 The P2PKH address hash space is 2^160, or about `1.46 × 10^48` possible hashes. Even at 10 million keys/second, searching 1% of that space is still roughly `4.6 × 10^31` years of work.
 
-That is not "needs a bigger server" hard. That is "the heat death of your project plan" hard.
+That is not "needs a bigger server" hard. That is "your project manager should not put this in the sprint" hard.
 
 ### How to measure keys/sec correctly?
 
@@ -253,7 +257,7 @@ For this version, use `BenchmarkKeyStreamPerKey` for the optimized worker hot pa
 
 ### What's the probability of finding a match?
 
-With roughly 50 million funded addresses and 2^160 possible Hash160 values, the probability per random guess is about `3.4 × 10^-41`. In human terms: effectively zero.
+With roughly 50 million funded addresses and 2^160 possible Hash160 values, the probability per random guess is about `3.4 × 10^-41`. In human terms: effectively zero. Luck is not a scaling strategy.
 
 ### Can GPUs speed this up?
 
@@ -320,6 +324,7 @@ Useful contributions are very welcome:
 - Educational documentation improvements
 - Tests that protect the cryptographic hot path
 - Clear explanations that help people understand why the attack still does not work
+- Pull requests welcome; wallet-cracking feature requests will be politely shown the door
 
 See [COMPARISON.md](COMPARISON.md) for project philosophy and contribution guidelines.
 
@@ -355,9 +360,9 @@ Built with respect for the Bitcoin ecosystem and inspired by:
 
 ---
 
-## Support This Project
+## Support This Project ₿
 
-If this project helped you understand Bitcoin security, benchmark Go code, or win an argument with a brute-force enthusiast, you can support continued research here:
+If this project helped you understand Bitcoin security, benchmark Go code, or explain why brute force is not a business model, you can support continued research here:
 
 **Bitcoin donation address:**
 
