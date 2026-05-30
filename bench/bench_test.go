@@ -1,6 +1,7 @@
 package bench
 
 import (
+	"crypto/rand"
 	"testing"
 
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -16,14 +17,12 @@ func BenchmarkHashPipeline(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		// Generate private key
-		privateKey, err := btcec.NewPrivateKey()
-		if err != nil {
+		var privBytes [32]byte
+		if _, err := rand.Read(privBytes[:]); err != nil {
 			b.Fatal(err)
 		}
-
-		// Serialize compressed public key (33 bytes)
-		pubKeyBytes := privateKey.PubKey().SerializeCompressed()
+		_, pubKey := btcec.PrivKeyFromBytes(privBytes[:])
+		pubKeyBytes := pubKey.SerializeCompressed()
 
 		// Hash160: RIPEMD160(SHA256(pubkey))
 		hash160 := btcutil.Hash160(pubKeyBytes)
@@ -51,11 +50,12 @@ func BenchmarkKeyGeneration(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		privateKey, err := btcec.NewPrivateKey()
-		if err != nil {
+		var privBytes [32]byte
+		if _, err := rand.Read(privBytes[:]); err != nil {
 			b.Fatal(err)
 		}
-		_ = privateKey.PubKey().SerializeCompressed()
+		_, pubKey := btcec.PrivKeyFromBytes(privBytes[:])
+		_ = pubKey.SerializeCompressed()
 	}
 }
 

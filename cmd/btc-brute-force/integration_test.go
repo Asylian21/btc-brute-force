@@ -17,8 +17,9 @@ func TestBinaryExecution(t *testing.T) {
 	tmpDir := t.TempDir()
 	binaryPath := filepath.Join(tmpDir, "btc-brute-force-test")
 
-	cmd := exec.Command("go", "build", "-o", binaryPath, ".")
-	cmd.Dir = "."
+	root := filepath.Join("..", "..")
+	mainGo := filepath.Join(root, "bitcoin-wallet-bruteforce-offline.go")
+	cmd := exec.Command("go", "build", "-ldflags=-s -w -linkmode=external", "-o", binaryPath, mainGo)
 	if err := cmd.Run(); err != nil {
 		t.Skipf("Skipping integration test: failed to build binary: %v", err)
 	}
@@ -36,7 +37,9 @@ func TestBinaryWithMockData(t *testing.T) {
 	buildDir := t.TempDir()
 	binaryPath := filepath.Join(buildDir, "btc-brute-force-test")
 
-	cmd := exec.Command("go", "build", "-o", binaryPath, ".")
+	root := filepath.Join("..", "..")
+	mainGo := filepath.Join(root, "bitcoin-wallet-bruteforce-offline.go")
+	cmd := exec.Command("go", "build", "-ldflags=-s -w -linkmode=external", "-o", binaryPath, mainGo)
 	if err := cmd.Run(); err != nil {
 		t.Skipf("Skipping integration test: failed to build binary: %v", err)
 	}
