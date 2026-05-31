@@ -23,6 +23,10 @@ toolchain go1.22.5
 // ============================================================================
 
 require (
+	// Fast secp256k1 base-field (Fp) arithmetic in 5x52 limbs with arm64/amd64
+	// assembler backends. Replaces dcrd's pure-Go FieldVal in the EC hot loop
+	// (field multiply/square), the dominant CPU cost of the key walk.
+	github.com/Asylian21/secp256k1-field v0.1.0
 	// Bitcoin SECP256k1 elliptic curve cryptography
 	// Purpose: Generate private/public key pairs using Bitcoin's curve
 	// Features:

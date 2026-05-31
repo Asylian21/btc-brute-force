@@ -1,5 +1,7 @@
 github.com/Asylian21/ripemd160-asm v0.1.1 h1:4IPbh/19IzH1GKu5pJUdXwBbxaBqH0SgeJs7BMkpJog=
 github.com/Asylian21/ripemd160-asm v0.1.1/go.mod h1:OwoSFLjGWHRMYDWlxHdiq2M9S100RBD4pV4XjwXY2xg=
+github.com/Asylian21/secp256k1-field v0.1.0 h1:xtgPfCJsejE9Pk4lse5bFKm8WX8Mz4mJLz1oF2g2m5w=
+github.com/Asylian21/secp256k1-field v0.1.0/go.mod h1:mmLWpD6S1Nm9x+TgZ9tsSl4oCMANJywlbWN/JIl5E3I=
 github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBAUSII=
 github.com/btcsuite/btcd v0.20.1-beta h1:Ik4hyJqN8Jfyv3S4AGBOmyouMsYE3EdYODkMbQjwPGw=
 github.com/btcsuite/btcd v0.20.1-beta/go.mod h1:wVuoA8VJLEcwgqHBwHmzLRazpKxTv13Px/pDuV7OomQ=

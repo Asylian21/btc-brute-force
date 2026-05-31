@@ -22,12 +22,18 @@ Performance Optimizations:
 	- Batched affine EC walk: one scalar multiplication per worker, then whole
 	  batches of keys via group addition P+iG against a precomputed table of
 	  multiples of G (no per-key scalar mult, no Jacobian->affine conversion)
-	- Batched (Montgomery) field inversion: a single inversion per 1024 keys
+	- GLV endomorphism: every affine point (x, y) yields a SECOND valid key
+	  (beta*x, y) = lambda*P for the cost of one field multiply (same y, so the
+	  02/03 parity is shared), doubling the keys produced per field inversion
+	- Batched (Montgomery) field inversion: a single inversion per batch
 	  amortizes the only division in the affine addition formula
 	- SIMD-accelerated SHA256 hashing (minio/sha256-simd)
 	- Multi-buffer SIMD RIPEMD160 over the whole batch (github.com/Asylian21/ripemd160-asm;
 	  4-lane NEON on arm64, scalar fallback elsewhere) — the RIPEMD160 half of Hash160 is
 	  the second-largest CPU cost after the EC field math, so it is vectorized across lanes
+	- Zero-copy Hash160: RIPEMD160 writes its 20-byte digests straight into the
+	  caller's [][20]byte result slice (ripemd160mb.Size == 20), so the batch needs
+	  no intermediate output buffer and no per-key scatter copy
 	- Alloc-free hot path: reused per-worker scratch buffers
 	- Compressed public keys (33 bytes vs 65 bytes)
 	- Hash160-only lookups (Base58 deferred to the rare match path)
@@ -63,13 +69,15 @@ import (
 	"sync/atomic"     // Atomic operations for thread-safe counters
 	"syscall"         // Signal constants (SIGINT/SIGTERM) for graceful shutdown
 	"time"            // Time operations for statistics
+	"unsafe"          // Reinterpret out's [][20]byte backing as []byte for zero-copy Hash160
 
+	ripemd160mb "github.com/Asylian21/ripemd160-asm" // Multi-buffer SIMD RIPEMD160 (NEON 4-lane on arm64)
+	field "github.com/Asylian21/secp256k1-field"     // Fast secp256k1 Fp arithmetic (5x52 limbs, arm64/amd64 asm)
 	"github.com/btcsuite/btcd/btcec/v2"              // Bitcoin SECP256k1 elliptic curve operations
 	"github.com/btcsuite/btcutil"                    // Bitcoin utility functions (Hash160, reference path)
 	"github.com/btcsuite/btcutil/base58"             // Base58 encoding for addresses
 	secp "github.com/decred/dcrd/dcrec/secp256k1/v4" // Low-level EC point arithmetic (incremental walk)
 	sha256simd "github.com/minio/sha256-simd"        // SIMD-accelerated SHA256 (2-3x faster)
-	ripemd160mb "github.com/Asylian21/ripemd160-asm" // Multi-buffer SIMD RIPEMD160 (NEON 4-lane on arm64)
 )
 
 // ============================================================================
@@ -226,21 +234,87 @@ const keyBatchSize = 2048
 // mulGnegX[j] = -mulGx[j] (normalized) so the hot loop can compute x3 = λ²-x_P-x_Q
 // with plain additions. The table is read-only and shared across all workers.
 var (
-	mulGx    [keyBatchSize]secp.FieldVal
-	mulGy    [keyBatchSize]secp.FieldVal
-	mulGnegX [keyBatchSize]secp.FieldVal
+	mulGx    [keyBatchSize]field.Val
+	mulGy    [keyBatchSize]field.Val
+	mulGnegX [keyBatchSize]field.Val
 )
 
+// ============================================================================
+// secp256k1 GLV endomorphism
+// ============================================================================
+//
+// secp256k1 admits an efficiently computable endomorphism: for any curve point
+// P = (x, y), the point (beta*x mod p, y) is also on the curve (because
+// (beta*x)^3 + 7 = beta^3*x^3 + 7 = x^3 + 7 = y^2 when beta^3 == 1) and equals
+// lambda*P, where beta is a nontrivial cube root of unity in the base field Fp
+// and lambda is the matching cube root of unity in the scalar field Fn.
+//
+// So for the cost of ONE field multiply (beta*x) the affine walk yields a second
+// valid key that shares the same y — hence the same 02/03 compressed prefix —
+// whose private scalar is lambda*k mod n. This doubles the keys produced per
+// Montgomery inversion and amortizes the slope, y3, and normalization work
+// across two candidates. The (beta, lambda) pair below is libsecp256k1's, for
+// which (beta*x, y) == lambda*P (verified by verifyHashPipeline and tests).
+const (
+	betaHex   = "7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee"
+	lambdaHex = "5363ad4cc05c30e0a5261c028812645a122e22ea20816678df02967c1b23bd72"
+)
+
+// endoFactor is the number of keys produced per linear walk step: the identity
+// point plus its endomorphism image. Each batch therefore checks
+// endoFactor*keyBatchSize keys against the target set.
+const endoFactor = 2
+
+var (
+	betaVal      field.Val       // beta: cube root of unity in Fp (normalized, magnitude 1)
+	lambdaScalar secp.ModNScalar // lambda: matching cube root of unity in Fn
+)
+
+// mustDecodeScalar32 decodes a 64-char hex string into a 32-byte big-endian
+// array. It panics on malformed input; callers pass fixed compile-time constants.
+func mustDecodeScalar32(s string) [32]byte {
+	raw, err := hex.DecodeString(s)
+	if err != nil || len(raw) != 32 {
+		panic(fmt.Sprintf("invalid 32-byte hex constant %q", s))
+	}
+	var out [32]byte
+	copy(out[:], raw)
+	return out
+}
+
+// fieldFromDcrd converts a dcrd field element into the fast field.Val used by
+// the hot loop, via the canonical 32-byte big-endian encoding. The source is
+// normalized defensively so any magnitude is accepted; the result is the unique
+// residue in [0, p) at magnitude 1. This bridge runs only where dcrd produces a
+// point (init, setBase, and the rare degenerate fixup), never per generated key.
+func fieldFromDcrd(src *secp.FieldVal) field.Val {
+	var t secp.FieldVal
+	t.Set(src)
+	t.Normalize()
+	b := t.Bytes()
+	var dst field.Val
+	dst.SetBytes(b)
+	return dst
+}
+
 func init() {
+	// Parse the endomorphism constants once. beta < p and lambda < n, so the
+	// SetBytes overflow flags are expected to be zero and are ignored.
+	bb := mustDecodeScalar32(betaHex)
+	betaVal.SetBytes(&bb)
+	betaVal.Normalize()
+	lb := mustDecodeScalar32(lambdaHex)
+	lambdaScalar.SetBytes(&lb)
+
 	var s secp.ModNScalar
 	var p secp.JacobianPoint
 	for j := 0; j < keyBatchSize; j++ {
 		s.SetInt(uint32(j + 1))
 		secp.ScalarBaseMultNonConst(&s, &p)
 		p.ToAffine() // Z=1, X/Y normalized to magnitude 1
-		mulGx[j].Set(&p.X)
-		mulGy[j].Set(&p.Y)
-		mulGnegX[j].NegateVal(&p.X, 1)
+		mulGx[j] = fieldFromDcrd(&p.X)
+		mulGy[j] = fieldFromDcrd(&p.Y)
+		mulGnegX[j].NegateVal(&mulGx[j], 1)
 		mulGnegX[j].Normalize()
 	}
 }
@@ -258,14 +332,13 @@ base + start + j.
 */
 type keyStream struct {
 	base     secp.ModNScalar // starting private scalar k0
-	px, py   secp.FieldVal   // running base point P = (base+offset)*G, affine (mag 1)
+	px, py   field.Val       // running base point P = (base+offset)*G, affine (mag 1)
 	offset   uint64          // number of keys produced so far (base == offset 0)
-	dx       []secp.FieldVal // scratch: denominators (x_iG - x_P) then their inverses
-	pre      []secp.FieldVal // scratch: Montgomery prefix products
+	dx       []field.Val     // scratch: denominators (x_iG - x_P) then their inverses
+	pre      []field.Val     // scratch: Montgomery prefix products
 	degenIdx []int           // batch indices where P == ±iG (zero denominator)
 	pub      [33]byte        // stable compressed-pubkey scratch (avoids per-key alloc)
-	digBuf   []byte          // batch scratch: SHA-256 digests (n*32) fed to multi-buffer RIPEMD-160
-	h160Buf  []byte          // batch scratch: RIPEMD-160 output (n*20) before scatter into out
+	digBuf   []byte          // batch scratch: SHA-256 digests (endoFactor*keyBatchSize*32) fed to multi-buffer RIPEMD-160
 }
 
 // setBase derives the affine starting point P = base*G from a 32-byte seed,
@@ -275,8 +348,8 @@ func (ks *keyStream) setBase(seed [32]byte) {
 	var p secp.JacobianPoint
 	secp.ScalarBaseMultNonConst(&ks.base, &p)
 	p.ToAffine()
-	ks.px.Set(&p.X)
-	ks.py.Set(&p.Y)
+	ks.px = fieldFromDcrd(&p.X)
+	ks.py = fieldFromDcrd(&p.Y)
 }
 
 // newKeyStream seeds a worker's key stream from the system CSPRNG.
@@ -293,11 +366,10 @@ func newKeyStream() (*keyStream, error) {
 // the new base, so generation continues exactly where the previous run stopped.
 func newKeyStreamFromSeed(seed [32]byte) *keyStream {
 	ks := &keyStream{
-		dx:       make([]secp.FieldVal, keyBatchSize),
-		pre:      make([]secp.FieldVal, keyBatchSize),
+		dx:       make([]field.Val, keyBatchSize),
+		pre:      make([]field.Val, keyBatchSize),
 		degenIdx: make([]int, 0, 4),
-		digBuf:   make([]byte, keyBatchSize*32),
-		h160Buf:  make([]byte, keyBatchSize*ripemd160mb.Size),
+		digBuf:   make([]byte, endoFactor*keyBatchSize*32),
 	}
 	ks.setBase(seed)
 	return ks
@@ -305,7 +377,7 @@ func newKeyStreamFromSeed(seed [32]byte) *keyStream {
 
 // affineAt computes the affine point (base + absOffset)*G into (x, y). Used only
 // on the rare degenerate path where the fast batched addition divides by zero.
-func (ks *keyStream) affineAt(absOffset uint64, x, y *secp.FieldVal) {
+func (ks *keyStream) affineAt(absOffset uint64, x, y *field.Val) {
 	var addBytes [32]byte
 	binary.BigEndian.PutUint64(addBytes[24:], absOffset)
 	var add, res secp.ModNScalar
@@ -314,47 +386,73 @@ func (ks *keyStream) affineAt(absOffset uint64, x, y *secp.FieldVal) {
 	var p secp.JacobianPoint
 	secp.ScalarBaseMultNonConst(&res, &p)
 	p.ToAffine()
-	x.Set(&p.X)
-	y.Set(&p.Y)
+	*x = fieldFromDcrd(&p.X)
+	*y = fieldFromDcrd(&p.Y)
 }
 
-// shaPoint writes SHA256(compressed pubkey) of the affine point (x, y) into the
-// 32-byte digest slot dig. Both x and y MUST be normalized. It allocates
-// nothing: pub lives on the heap-resident stream. The RIPEMD160 half of Hash160
-// is applied later in one multi-buffer pass over the whole batch (see nextBatch),
-// which is where the SIMD speedup comes from.
-func (ks *keyStream) shaPoint(x, y *secp.FieldVal, dig []byte) {
-	ks.pub[0] = 0x02 | byte(y.IsOddBit())
+// hashPair writes SHA256(compressed pubkey) for BOTH the affine point (x, y) and
+// its endomorphism image (beta*x, y) into the batch digest buffer: the identity
+// digest goes to slot p (digBuf[p*32:]) and the endomorphism digest to slot m+p
+// (digBuf[(m+p)*32:]), where m is the number of linear walk steps in the batch.
+//
+// The two points share the same y, so the 02/03 parity prefix is computed once
+// and reused; the endomorphism image costs only one extra field multiply
+// (beta*x) plus its SHA-256. It allocates nothing (pub lives on the heap-resident
+// stream); the digest is stored with a single array assignment rather than a
+// copy. The RIPEMD160 half of Hash160 is applied later in one multi-buffer pass
+// over the whole batch (see nextBatch), which is where the SIMD speedup comes from.
+//
+// Preconditions: x and y MUST be normalized — PutBytesUnchecked needs canonical
+// limbs, and IsOddBit needs the canonical low bit for the prefix.
+func (ks *keyStream) hashPair(x, y *field.Val, p, m int) {
+	prefix := byte(0x02) | byte(y.IsOddBit())
+
+	// Identity point (x, y) -> slot p.
+	ks.pub[0] = prefix
 	x.PutBytesUnchecked(ks.pub[1:33])
-	d := sha256simd.Sum256(ks.pub[:])
-	copy(dig, d[:])
+	*(*[32]byte)(ks.digBuf[p*32:]) = sha256simd.Sum256(ks.pub[:])
+
+	// Endomorphism image (beta*x, y) -> slot m+p. y (hence prefix) is unchanged.
+	var bx field.Val
+	bx.Mul2(&betaVal, x)
+	bx.Normalize()
+	bx.PutBytesUnchecked(ks.pub[1:33])
+	*(*[32]byte)(ks.digBuf[(m+p)*32:]) = sha256simd.Sum256(ks.pub[:])
 }
 
 /*
-nextBatch advances the stream by len(out) keys and writes their Hash160s to out.
+nextBatch advances the stream by m = len(out)/endoFactor linear walk steps and
+writes len(out) Hash160s to out: the first m are the identity keys and the next
+m are their endomorphism images, so len(out) MUST be endoFactor*m (even).
 
-It returns the absolute key offset of out[0] (i.e. out[j] corresponds to private
-scalar base + start + j), which lets the caller reconstruct the private key for
-any match without tracking per-key scalars in the hot loop.
+It returns the absolute LINEAR key offset of out[0]: out[i] for i < m corresponds
+to private scalar base + start + i, and out[m+i] corresponds to the endomorphism
+image with private scalar lambda*(base + start + i) mod N. This lets the caller
+reconstruct the private key for any match — identity via privateKeyAt,
+endomorphism via privateKeyAtEndo — without tracking per-key scalars in the hot loop.
 
-Math per key (P is the batch base point, Q = (j+1)*G from the table):
+Math per linear step (P is the batch base point, Q = (j+1)*G from the table):
 
 	λ  = (y_Q - y_P) / (x_Q - x_P)
 	x3 = λ² - x_P - x_Q
 	y3 = λ(x_P - x3) - y_P
 
-The N divisions share a single inversion via Montgomery's trick.
+The m divisions share a single inversion via Montgomery's trick. Each computed
+point also yields the endomorphism image (beta*x3, y3) for one extra multiply.
 */
 func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
-	n := len(out)
+	total := len(out)       // identity + endomorphism candidates
+	m := total / endoFactor // linear walk steps (affine points computed)
 	start := ks.offset
 
-	// Phase 1: SHA-256 every point's compressed pubkey into the batch digest
-	// buffer. out[0] is the current base point P (already affine, normalized).
-	ks.shaPoint(&ks.px, &ks.py, ks.digBuf[0:32])
+	// Phase 1: SHA-256 every point's compressed pubkey — identity AND its
+	// endomorphism image — into the batch digest buffer. out[0] is the current
+	// base point P (already affine, normalized): its identity digest lands in
+	// slot 0 and its endomorphism digest in slot m.
+	ks.hashPair(&ks.px, &ks.py, 0, m)
 
 	// -x_P and -y_P are reused for every key in this batch.
-	var negPx, negPy secp.FieldVal
+	var negPx, negPy field.Val
 	negPx.NegateVal(&ks.px, 1) // mag 2
 	negPy.NegateVal(&ks.py, 1) // mag 2
 
@@ -363,7 +461,7 @@ func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
 	// shared inversion, substitute 1 and remember the index for an exact fixup.
 	// Both operands are normalized, so Equals is an exact zero-denominator test.
 	ks.degenIdx = ks.degenIdx[:0]
-	for j := 0; j < n; j++ {
+	for j := 0; j < m; j++ {
 		if mulGx[j].Equals(&ks.px) {
 			ks.dx[j].SetInt(1)
 			ks.degenIdx = append(ks.degenIdx, j)
@@ -375,23 +473,24 @@ func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
 	// Montgomery batch inversion: pre[j] = dx[0]*..*dx[j], invert the full
 	// product once, then a backward pass peels off each individual 1/dx[j].
 	ks.pre[0].Set(&ks.dx[0])
-	for j := 1; j < n; j++ {
+	for j := 1; j < m; j++ {
 		ks.pre[j].Mul2(&ks.pre[j-1], &ks.dx[j])
 	}
-	var inv secp.FieldVal
-	inv.Set(&ks.pre[n-1]).Inverse()
-	for j := n - 1; j > 0; j-- {
-		var invdx secp.FieldVal
+	var inv field.Val
+	inv.Set(&ks.pre[m-1]).Inverse()
+	for j := m - 1; j > 0; j-- {
+		var invdx field.Val
 		invdx.Mul2(&inv, &ks.pre[j-1]) // 1/dx[j] = inv * (dx[0]..dx[j-1])
 		inv.Mul(&ks.dx[j])             // fold dx[j] back out for the next index
 		ks.dx[j].Set(&invdx)           // dx[j] now holds 1/dx[j]
 	}
 	ks.dx[0].Set(&inv) // 1/dx[0]
 
-	// Compute each Q = P + (j+1)*G. The last one (j == n-1) becomes the base
-	// point for the next batch; the rest are SHA'd into digBuf[1..n-1].
-	var lam, lamSq, x3, negX3, t, num, y3 secp.FieldVal
-	for j := 0; j < n; j++ {
+	// Compute each Q = P + (j+1)*G at position p = j+1: identity digest -> slot
+	// p, endomorphism digest -> slot m+p. The last one (j == m-1, position m)
+	// becomes the base point for the next batch and is not hashed this round.
+	var lam, lamSq, x3, negX3, t, num, y3 field.Val
+	for j := 0; j < m; j++ {
 		num.Add2(&mulGy[j], &negPy)                  // y_Q - y_P (mag 3)
 		lam.Mul2(&num, &ks.dx[j])                    // λ (mag 1)
 		lamSq.SquareVal(&lam)                        // λ² (mag 1)
@@ -403,10 +502,10 @@ func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
 		x3.Normalize()
 		y3.Normalize()
 
-		if j < n-1 {
-			ks.shaPoint(&x3, &y3, ks.digBuf[(j+1)*32:(j+2)*32])
+		if j < m-1 {
+			ks.hashPair(&x3, &y3, j+1, m)
 		} else {
-			ks.px.Set(&x3) // advance base point to P + n*G
+			ks.px.Set(&x3) // advance base point to P + m*G
 			ks.py.Set(&y3)
 		}
 	}
@@ -414,26 +513,27 @@ func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
 	// Exact fixup for any zero-denominator indices (computed via direct scalar
 	// multiplication). This runs essentially never for random starting points.
 	for _, j := range ks.degenIdx {
-		var x, y secp.FieldVal
+		var x, y field.Val
 		ks.affineAt(start+uint64(j)+1, &x, &y)
-		if j < n-1 {
-			ks.shaPoint(&x, &y, ks.digBuf[(j+1)*32:(j+2)*32])
+		if j < m-1 {
+			ks.hashPair(&x, &y, j+1, m)
 		} else {
 			ks.px.Set(&x)
 			ks.py.Set(&y)
 		}
 	}
 
-	// Phase 2: a single multi-buffer RIPEMD-160 pass over all n SHA-256 digests
-	// (the expensive hash, vectorized across SIMD lanes by ripemd160mb), then
-	// scatter the 20-byte Hash160s into the caller's slice. With the library's
-	// scalar fallback this is bit-identical to a per-key RIPEMD-160.
-	ripemd160mb.Hash32(ks.h160Buf[:n*ripemd160mb.Size], ks.digBuf[:n*32], n)
-	for k := 0; k < n; k++ {
-		copy(out[k][:], ks.h160Buf[k*ripemd160mb.Size:(k+1)*ripemd160mb.Size])
-	}
+	// Phase 2: a single multi-buffer RIPEMD-160 pass over all `total` SHA-256
+	// digests (the expensive hash, vectorized across SIMD lanes by ripemd160mb),
+	// written STRAIGHT into the caller's slice. out is [][20]byte whose backing
+	// array is total*20 contiguous bytes and ripemd160mb.Size == 20, so Hash32's
+	// dst[i*20:(i+1)*20] layout lands each digest exactly on out[i] — no
+	// intermediate buffer and no scatter copy. With the library's scalar
+	// fallback this is bit-identical to a per-key RIPEMD-160.
+	dst := unsafe.Slice((*byte)(unsafe.Pointer(&out[0])), total*ripemd160mb.Size)
+	ripemd160mb.Hash32(dst, ks.digBuf[:total*32], total)
 
-	ks.offset += uint64(n)
+	ks.offset += uint64(m)
 	return start
 }
 
@@ -450,11 +550,32 @@ func (ks *keyStream) privateKeyAt(absOffset uint64) *btcec.PrivateKey {
 	return priv
 }
 
+// privateKeyAtEndo reconstructs the private key for the ENDOMORPHISM candidate at
+// a given absolute linear offset: lambda*(base + offset) mod N. The identity key
+// at this offset is base+offset (privateKeyAt); its endomorphism image
+// (beta*x, y) = lambda*P has private scalar lambda times that. Only used on the
+// rare match path, so the extra scalar multiply is irrelevant to throughput.
+func (ks *keyStream) privateKeyAtEndo(absOffset uint64) *btcec.PrivateKey {
+	var addBytes [32]byte
+	binary.BigEndian.PutUint64(addBytes[24:], absOffset)
+	var add, res secp.ModNScalar
+	add.SetBytes(&addBytes)
+	res.Set(&ks.base).Add(&add) // base + offset (mod N)
+	res.Mul(&lambdaScalar)      // lambda*(base + offset) (mod N)
+	keyBytes := res.Bytes()
+	priv, _ := btcec.PrivKeyFromBytes(keyBytes[:])
+	return priv
+}
+
 // verifyHashPipeline runs a handful of keys through the full production hot path
-// (EC walk -> SHA-256 -> multi-buffer RIPEMD-160) and checks every result
-// against the independent btcutil.Hash160 reference. The SIMD RIPEMD-160 backend
-// is architecture-specific, so this guards against a kernel that is wrong on this
-// CPU: instead of silently missing every real match for a whole run, fail fast.
+// (EC walk -> endomorphism -> SHA-256 -> multi-buffer RIPEMD-160) and checks every
+// result against the independent btcutil.Hash160 reference. It validates BOTH the
+// identity keys and the endomorphism keys: the identity half against
+// privateKeyAt and the endomorphism half against privateKeyAtEndo. This ties the
+// beta (field) and lambda (scalar) constants together end to end — a wrong or
+// mispaired constant, or an architecture-specific SIMD RIPEMD-160 kernel that is
+// wrong on this CPU, makes the program fail fast here instead of silently missing
+// every real match for a whole run.
 func verifyHashPipeline() {
 	var seed [32]byte
 	seed[0] = 0x2a
@@ -462,15 +583,25 @@ func verifyHashPipeline() {
 	ks := newKeyStreamFromSeed(seed)
 
 	const m = 64 // larger than the lane width: exercises the SIMD body and tail
-	out := make([][20]byte, m)
+	out := make([][20]byte, endoFactor*m)
 	start := ks.nextBatch(out)
 	for j := 0; j < m; j++ {
+		// Identity key: priv = base + start + j.
 		priv := ks.privateKeyAt(start + uint64(j))
 		var want [20]byte
 		copy(want[:], btcutil.Hash160(priv.PubKey().SerializeCompressed()))
 		if out[j] != want {
-			log.Fatalf("Hash160 pipeline self-test FAILED at index %d (RIPEMD160 backend %q): got %x, want %x — refusing to run",
+			log.Fatalf("Hash160 pipeline self-test FAILED at identity index %d (RIPEMD160 backend %q): got %x, want %x — refusing to run",
 				j, ripemd160mb.Backend(), out[j], want)
+		}
+
+		// Endomorphism key: priv = lambda*(base + start + j).
+		epriv := ks.privateKeyAtEndo(start + uint64(j))
+		var ewant [20]byte
+		copy(ewant[:], btcutil.Hash160(epriv.PubKey().SerializeCompressed()))
+		if out[m+j] != ewant {
+			log.Fatalf("Hash160 pipeline self-test FAILED at endomorphism index %d (RIPEMD160 backend %q): got %x, want %x — refusing to run",
+				j, ripemd160mb.Backend(), out[m+j], ewant)
 		}
 	}
 }
@@ -557,8 +688,8 @@ var checkpointMu sync.Mutex
 // cumulative count are rewritten unchanged every checkpoint.
 type workerState struct {
 	base      [32]byte // starting scalar (constant once the stream is created)
-	offset    uint64   // atomic: keys produced THIS run (next key = base + offset)
-	priorKeys uint64   // keys this segment processed in previous runs (for cumulative count)
+	offset    uint64   // atomic: LINEAR walk steps THIS run (next key = base + offset); actual keys checked = offset*endoFactor
+	priorKeys uint64   // keys this segment checked in previous runs (for cumulative count, endoFactor-scaled)
 }
 
 // workerCheckpoint is the saved position of a single segment.
@@ -627,9 +758,12 @@ func writeCheckpoint(path string, states []*workerState, counter *uint64, baseTo
 	for i, ws := range states {
 		offset := atomic.LoadUint64(&ws.offset)
 		cp.Workers[i] = workerCheckpoint{
-			ID:             i,
+			ID: i,
+			// NextPrivateKey resumes the LINEAR walk (base+offset); the
+			// endomorphism keys are re-derived from it. KeysProcessed counts the
+			// actual keys checked, which is endoFactor per linear step.
 			NextPrivateKey: privateKeyHexFromBase(ws.base, offset),
-			KeysProcessed:  ws.priorKeys + offset,
+			KeysProcessed:  ws.priorKeys + offset*endoFactor,
 		}
 	}
 
@@ -763,7 +897,10 @@ Statistics:
 func worker(id int, wg *sync.WaitGroup, targets hash160Set, matchChan chan<- MatchResult, counter *uint64, stream *keyStream, state *workerState, stop <-chan struct{}) {
 	defer wg.Done()
 
-	hashes := make([][20]byte, keyBatchSize)
+	// Each batch yields endoFactor keys per linear walk step: the identity keys
+	// occupy hashes[0:keyBatchSize] and their endomorphism images occupy
+	// hashes[keyBatchSize:endoFactor*keyBatchSize].
+	hashes := make([][20]byte, endoFactor*keyBatchSize)
 	// Worker 0 publishes a console sample roughly every ~100k keys.
 	// (+1 guarantees a non-zero interval even if keyBatchSize >= 100000.)
 	const sampleEvery = 1 + 100000/keyBatchSize // batches between samples
@@ -780,13 +917,15 @@ func worker(id int, wg *sync.WaitGroup, targets hash160Set, matchChan chan<- Mat
 
 		start := stream.nextBatch(hashes)
 
-		// One atomic per batch (every keyBatchSize keys) keeps contention low.
+		// One atomic per batch keeps contention low. len(hashes) counts both the
+		// identity and endomorphism keys actually checked against the target set.
 		atomic.AddUint64(counter, uint64(len(hashes)))
 
-		// Publish the resumable position. stream.offset now counts every key
-		// produced so far, so base + offset is the next unprocessed key. Stored
-		// after nextBatch, it can only lag the truth, never lead it — a resume
-		// re-does at most one batch and never skips keys.
+		// Publish the resumable position. stream.offset counts LINEAR walk steps
+		// (the endomorphism keys are re-derived deterministically), so base +
+		// offset is the next unprocessed key. Stored after nextBatch, it can only
+		// lag the truth, never lead it — a resume re-does at most one batch and
+		// never skips keys.
 		atomic.StoreUint64(&state.offset, stream.offset)
 
 		if id == 0 && (batchNum == 0 || batchNum%sampleEvery == 0) {
@@ -796,7 +935,14 @@ func worker(id int, wg *sync.WaitGroup, targets hash160Set, matchChan chan<- Mat
 
 		for j := range hashes {
 			if _, exists := targets[hashes[j]]; exists {
-				privateKey := stream.privateKeyAt(start + uint64(j))
+				// hashes[0:keyBatchSize] are identity keys (base+offset);
+				// hashes[keyBatchSize:] are endomorphism keys (lambda*(base+offset)).
+				var privateKey *btcec.PrivateKey
+				if j < keyBatchSize {
+					privateKey = stream.privateKeyAt(start + uint64(j))
+				} else {
+					privateKey = stream.privateKeyAtEndo(start + uint64(j-keyBatchSize))
+				}
 				publicAddress := encodeP2PKH(hashes[j])
 				match := MatchResult{privateKey: privateKey, address: publicAddress}
 				printMatchResult(match) // Print before enqueueing so the key is visible even if file I/O fails.
@@ -1101,7 +1247,7 @@ func main() {
 	fmt.Printf("║  Bitcoin Wallet Bruteforce - Optimized Edition            ║\n")
 	fmt.Printf("╚════════════════════════════════════════════════════════════╝\n\n")
 	fmt.Printf("CPU Cores: %d | Worker Threads: %d\n", runtime.NumCPU(), numThreads)
-	fmt.Printf("Key Gen: Batched affine EC walk + Montgomery inversion (%d/batch)\n", keyBatchSize)
+	fmt.Printf("Key Gen: Batched affine EC walk + GLV endomorphism + Montgomery inversion (%d keys/batch)\n", endoFactor*keyBatchSize)
 	fmt.Printf("SHA256: Hardware Accelerated (SIMD)\n")
 	fmt.Printf("RIPEMD160: %s backend, %d lane(s) [ripemd160-asm multi-buffer]\n", ripemd160mb.Backend(), ripemd160mb.Lanes())
 	fmt.Printf("Public Key: Compressed (33 bytes)\n")
