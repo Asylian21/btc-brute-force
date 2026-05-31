@@ -23,14 +23,24 @@ Measured locally with Go 1.22.5 on darwin/arm64:
 
 ### Runtime Throughput
 
-On a MacBook Air M3, the optimized program sustains roughly **26 million keys/sec with 4 worker threads** (up from ~19.9M under the previous endoFactor=2 design — a ~1.33x runtime gain on identical hardware) and about **39 million keys/sec with 8 threads**. This is the headline practical throughput number because it includes the actual worker pool, target Hash160 lookup, stats accounting, and runtime scheduling. Each computed affine point now yields SIX real, distinct keys — the three GLV endomorphism x-values (x, beta*x, beta^2*x), each in both point-negation parities — for just 2 extra field multiplies (negation is a free 02/03 prefix flip since y is never serialized). All six are genuine keys checked against the target set, so they are counted honestly.
+On a MacBook Air M3, the latest optimized 8-thread program run reached about **45.1 million keys/sec** — up from ~38.0M before the multi-buffer SHA-256 work, a measured **+18.7%** in a back-to-back A/B (see [Multi-Buffer SHA-256](#multi-buffer-sha-256-sha256mb-and-the-hash160-hot-path) below). The same implementation sustains roughly **26 million keys/sec with 4 worker threads** (that 4-thread figure predates the SHA-256 vectorization and is a conservative lower bound; it was itself up from ~19.9M under the previous endoFactor=2 design — a ~1.33x runtime gain on identical hardware). This is the headline practical throughput number because it includes the actual worker pool, target Hash160 lookup, stats accounting, checkpoint-aware scan-frontier tracking, and runtime scheduling. Each computed affine point now yields SIX real, distinct keys — the three GLV endomorphism x-values (x, beta*x, beta^2*x), each in both point-negation parities — for just 2 extra field multiplies (negation is a free 02/03 prefix flip since y is never serialized). All six are genuine keys checked against the target set, so they are counted honestly.
+
+Progress captured by the current run:
+
+- Runtime 8-thread headline reached about **45.1 million checked keys/sec** on local Apple Silicon (**+18.7%** over the pre-`sha256mb` baseline in a controlled A/B).
+- HASH160 now runs through a single batched multi-buffer pass — vectorized SHA-256 ([`sha256mb`](https://github.com/Asylian21/sha256mb), arm64 `sha2x4`) feeding multi-buffer RIPEMD-160 ([`ripemd160-asm`](https://github.com/Asylian21/ripemd160-asm), `neon`) — replacing the old per-key `minio/sha256-simd` calls.
+- The worker hot path is allocation-free (`0 B/op`, `0 allocs/op`) and operates on raw Hash160 values instead of Base58 strings.
+- The GLV+negation layout checks six variants per affine walk step while reconstructing private scalars only on the rare match path.
+- Checkpoints preserve a single scan frontier, so long measurements can resume from exactly where they stopped (with any thread count).
 
 ### Microbenchmarks
 
 | Benchmark | ns/op | Approx keys/sec | Memory/op | Allocs/op | What it measures |
 | --- | ---: | ---: | ---: | ---: | --- |
-| `BenchmarkKeyStreamPerKey` | 136.7 | ~7,316,000 keys/sec | 0 B | 0 | Optimized hot path (batched affine walk + GLV endomorphism + negation), per checked key |
-| `BenchmarkGenerateKeyAndHash160` | 28,741 | ~34,794 keys/sec | 488 B | 8 | Fresh random key + scalar multiplication + Hash160 |
+| `BenchmarkKeyStreamPerKey` | 118.5 | ~8,439,000 keys/sec | 0 B | 0 | Optimized hot path (batched affine walk + GLV endomorphism + negation + multi-buffer HASH160), per checked key |
+| `BenchmarkGenerateKeyAndHash160` | 29,105 | ~34,358 keys/sec | 488 B | 8 | Fresh random key + scalar multiplication + Hash160 |
+
+The `BenchmarkKeyStreamPerKey` figure (118.5 ns/op) is the controlled `GOMAXPROCS=1 -count=6` median; it dropped from 136.7 ns/op (−13.35%, `benchstat` n=10) when the per-key SHA-256 was replaced with the `sha256mb` multi-buffer pipeline. The benchmark body is single-goroutine, so `make bench` (`-8`, below) reports a near-identical ~120.7 ns/op.
 
 `BenchmarkKeyStreamPerKey` counts every checked key, including all six GLV+negation variants produced from each computed affine point (each linear walk step yields six keys), so its ns/op is the amortized cost per key actually compared against the target set.
 
@@ -45,32 +55,32 @@ make bench
 Raw output:
 
 ```text
-BenchmarkKeyStreamPerKey-8          17163657    136.7 ns/op      0 B/op   0 allocs/op
-BenchmarkGenerateKeyAndHash160-8       42093  28741 ns/op      488 B/op   8 allocs/op
-BenchmarkHashPipeline-8                38444  29655 ns/op      907 B/op  43 allocs/op
-BenchmarkKeyGeneration-8               42224  29439 ns/op      192 B/op   4 allocs/op
-BenchmarkHash160-8                  4143903    290.2 ns/op    296 B/op   4 allocs/op
-BenchmarkBase58Encode-8            18890001     63.28 ns/op   144 B/op   3 allocs/op
+BenchmarkKeyStreamPerKey-8         	51146752	       120.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGenerateKeyAndHash160-8   	  201792	     29105 ns/op	     488 B/op	       8 allocs/op
+BenchmarkHashPipeline-8            	  192752	     30666 ns/op	     907 B/op	      43 allocs/op
+BenchmarkKeyGeneration-8           	  204842	     29509 ns/op	     192 B/op	       4 allocs/op
+BenchmarkHash160-8                 	20302436	       298.2 ns/op	     296 B/op	       4 allocs/op
+BenchmarkBase58Encode-8            	93246190	        64.47 ns/op	     144 B/op	       3 allocs/op
 ```
 
 ## What Changed
 
 The previous benchmark story was dominated by per-key secp256k1 scalar multiplication. That is useful for teaching the naive Bitcoin address pipeline, but it is not how the current worker is structured.
 
-The current implementation makes one random starting scalar per worker and walks consecutive keys from that segment:
+The current implementation claims a contiguous chunk of the key space per worker and walks consecutive keys from the chunk's first key:
 
-1. Compute the initial point `P = base*G` once.
+1. Compute the chunk's starting point `P = base*G` (one scalar multiplication per chunk).
 2. Use precomputed multiples of the generator `G` to derive `P + iG` with affine point addition.
 3. From each affine point `(x, y)`, derive SIX valid keys: the three GLV endomorphism x-values `(x, beta*x, beta^2*x)` — scalars `k`, `lambda*k`, `lambda^2*k` — each in both point-negation parities (`-P = (x, -y)`, scalar `n-k`). This costs only 2 field multiplies (`beta*x`, `beta^2*x`); negation is a free `02/03` prefix flip because `y` is never serialized.
 4. Batch the field inversions with Montgomery's trick so one inversion covers a whole 1,024-step batch (6,144 keys after the 6x endomorphism+negation expansion).
-5. Hash compressed public keys with SIMD SHA256, then a multi-buffer RIPEMD160 that writes its 20-byte digests straight into the result slice (no scatter copy).
+5. Hash all compressed public keys in the batch with a single fused multi-buffer HASH160 pass — vectorized SHA-256 (`sha256mb`, arm64 4-lane hardware-SHA) feeding multi-buffer RIPEMD-160 (`ripemd160-asm`, NEON) — writing the 20-byte digests straight into the result slice (no scatter copy).
 6. Compare raw 20-byte Hash160 values against the target set.
 7. Encode Base58 only on the rare match path.
 
-This is why `BenchmarkKeyStreamPerKey` is roughly 210x faster per key than `BenchmarkGenerateKeyAndHash160` in the local run above:
+This is why `BenchmarkKeyStreamPerKey` is roughly 245x faster per key than `BenchmarkGenerateKeyAndHash160` in the local run above:
 
 ```text
-28741 ns/op / 136.7 ns/op = ~210x
+29105 ns/op / 118.5 ns/op = ~245x
 ```
 
 ## Interpreting Keys/sec
@@ -84,20 +94,20 @@ keys/sec = 1,000,000,000 / ns_per_op
 Example:
 
 ```text
-1,000,000,000 / 136.7 = ~7,316,000 keys/sec
+1,000,000,000 / 118.5 = ~8,439,000 keys/sec
 ```
 
-Actual program throughput depends on CPU core mix, thermal throttling, worker count, Go scheduler behavior, the target set size, and background system load. For a long run, the 10-second `[Stats]` output is more representative than a short benchmark; on the MacBook Air M3 runtime run, that sustained output is about **26M keys/sec at 4 threads** and **~39M keys/sec at 8 threads**.
+Actual program throughput depends on CPU core mix, thermal throttling, worker count, Go scheduler behavior, the target set size, and background system load. For a long run, the 10-second `[Stats]` output is more representative than a short benchmark; on the MacBook Air M3 runtime run, that sustained output is about **26M keys/sec at 4 threads** and about **45.1M keys/sec at 8 threads**.
 
 ## Why It Still Does Not Matter for Theft
 
 The P2PKH hash space is 2^160, about `1.46 x 10^48` possible hashes.
 
-Searching 1% of that space means about `1.46 x 10^46` guesses. At an optimistic 39 million keys/sec:
+Searching 1% of that space means about `1.46 x 10^46` guesses. At **45,100,000 keys/sec**:
 
 ```text
-1.46e46 / 3.9e7 seconds = 3.7e38 seconds
-3.7e38 / 31,557,600 seconds/year = ~1.2e31 years
+1.46e46 / 45,100,000 seconds = 3.2e38 seconds
+3.2e38 / 31,557,600 seconds/year = ~1.03e31 years
 ```
 
 That is many orders of magnitude beyond any practical computation. The optimization work makes the benchmark more honest; it does not make brute forcing Bitcoin practical.
@@ -106,14 +116,14 @@ That is many orders of magnitude beyond any practical computation. The optimizat
 
 Current production hot-path optimizations:
 
-1. **Batched affine EC walk**: one scalar multiplication per worker, then group addition for whole batches.
+1. **Batched affine EC walk**: one scalar multiplication per claimed chunk, then group addition for whole batches.
 2. **GLV endomorphism + point negation**: each affine point `(x, y)` yields six valid keys — the three endomorphism x-values `(x, beta*x, beta^2*x)` with scalars `k`, `lambda*k`, `lambda^2*k`, each negated to `-P = (x, -y)` with scalar `n-k`. This costs 2 extra field multiplies (negation is a free `02/03` prefix flip), producing 6x the keys per field inversion and amortizing the slope/`y3`/normalization work over 6 candidates; see the section below.
 3. **Montgomery batch inversion**: amortizes the expensive field inversion across a whole batch.
 4. **Fast secp256k1 Fp field backend**: the per-key base-field arithmetic (multiply, square, add, negate, normalize, inversion) runs on [`github.com/Asylian21/secp256k1-field`](https://github.com/Asylian21/secp256k1-field), a 5x52-limb implementation with arm64/amd64 assembler kernels, instead of dcrd's pure-Go 10x26 `FieldVal`. Field math was the dominant CPU cost of the walk; see the section below.
 5. **Hash160 target database**: input addresses are decoded once; workers compare fixed 20-byte arrays.
-6. **Specialized RIPEMD160**: avoids streaming hasher overhead for the fixed 32-byte SHA256 digest input.
-7. **Zero-copy Hash160**: the multi-buffer RIPEMD160 pass writes its 20-byte digests straight into the caller's `[][20]byte` result slice (`ripemd160mb.Size == 20`), so the batch needs no intermediate output buffer and no per-key scatter copy.
-8. **SIMD SHA256**: uses `minio/sha256-simd` for compressed public-key hashing and checksums.
+6. **Multi-buffer SHA-256**: compressed public keys are hashed in batches by [`github.com/Asylian21/sha256mb`](https://github.com/Asylian21/sha256mb), whose arm64 `sha2x4` kernel interleaves four messages through the ARMv8 hardware-SHA instructions (~2.6x scalar; see the section below). It replaces the per-key `minio/sha256-simd` calls on the hot path.
+7. **Fused multi-buffer HASH160**: a single `hash160mb.FromPubkeys33` call hashes the whole batch — multi-buffer SHA-256 feeding multi-buffer RIPEMD-160 — instead of two per-key passes.
+8. **Zero-copy Hash160**: the RIPEMD-160 pass writes its 20-byte digests straight into the caller's `[][20]byte` result slice (`hash160mb.Size == 20`), so the batch needs no intermediate output buffer and no per-key scatter copy.
 9. **Allocation-free worker batch**: per-worker scratch buffers keep the hot loop at `0 B/op`.
 10. **Batch counter updates**: atomics are updated per batch, not per key.
 
@@ -137,7 +147,10 @@ results twice: RIPEMD160 writes directly into the caller's slice and SHA256
 digests are stored with a single array assignment.
 
 `BenchmarkKeyStreamPerKey` on a MacBook Air M3 (darwin/arm64, Go 1.22.5, ns per
-*checked* key, `0 allocs/op` throughout):
+*checked* key, `0 allocs/op` throughout). These rows isolate the GLV key-expansion
+milestone and predate the multi-buffer SHA-256 work, which later took the 6-key
+endpoint from ~136.7 to ~118.5 ns/key (see
+[Multi-Buffer SHA-256](#multi-buffer-sha-256-sha256mb-and-the-hash160-hot-path)):
 
 | Hot path | ns/key | keys/sec | Allocs | Speedup |
 | --- | ---: | ---: | ---: | ---: |
@@ -190,7 +203,7 @@ dcrd's). Component micro-benchmarks (in the field library) measure the arm64
 kernels at Mul 3.28x, Square 2.86x, and Inverse 2.81x versus dcrd.
 
 (These ns/key figures were captured in the earlier endoFactor=2 configuration, so
-their absolute values are higher than the current ~136.7 ns/checked key. They are
+their absolute values are higher than the current ~118.5 ns/checked key. They are
 kept because they isolate the field-backend contribution, which is independent of
 the GLV key-expansion factor; the relative speedups carry over unchanged.)
 
@@ -206,11 +219,108 @@ GOSECP256K1FIELD_FORCE=generic GOMAXPROCS=1 go test -ldflags="-s -w -linkmode=ex
   -run '^$' -bench '^BenchmarkKeyStreamPerKey$' -benchmem -benchtime=2s -count=5 .
 ```
 
+## Multi-Buffer SHA-256 (sha256mb) and the HASH160 Hot Path
+
+After the field backend and the GLV expansion, hashing became the dominant
+remaining cost. A `BenchmarkKeyStreamPerKey` CPU profile of the pre-`sha256mb`
+build (minio per-key SHA-256 + multi-buffer RIPEMD-160) splits the per-key cost
+roughly as:
+
+| Component | Share of per-key cost |
+| --- | ---: |
+| RIPEMD-160 (multi-buffer NEON) | ~55% |
+| SHA-256 (per-key `minio/sha256-simd`) | ~23% |
+| EC point addition + field math | ~20% |
+| Everything else (loop, slot writes) | ~2% |
+
+The old code called `sha256simd.Sum256` once per compressed public key inside
+`hashSextet`. The ARMv8 SHA-256 instructions are *latency-bound*: a single-message
+hash cannot keep the crypto pipeline busy, so per-key hashing leaves throughput on
+the table. The fix is the new sibling module
+[`github.com/Asylian21/sha256mb`](https://github.com/Asylian21/sha256mb): its
+arm64 `sha2x4` kernel interleaves **four independent 33-byte messages** through
+`SHA256H`/`SHA256H2`/`SHA256SU0`/`SHA256SU1`, hiding the per-instruction latency.
+The hot path now serializes the batch's pubkeys (`writeSextet`) and makes one
+`hash160mb.FromPubkeys33` call that runs multi-buffer SHA-256 straight into
+multi-buffer RIPEMD-160.
+
+### Component: SHA-256 alone
+
+`sha256mb`'s own `BenchmarkHash33` on the same M3 (`GOMAXPROCS=1`, Go 1.22.5,
+`n = 6144` — the bruteforcer's batch size, `-count=8` median, 0 allocs/op),
+scalar `crypto/sha256` vs the `sha2x4` kernel:
+
+| Backend | ns/op | hashes/sec | Speedup |
+| --- | ---: | ---: | ---: |
+| `scalar` (`crypto/sha256`) | 285100 | ~21,550,000 | 1.00x |
+| `sha2x4` (arm64 HW-SHA, 4-lane) | 106700 | ~57,580,000 | **2.67x** |
+
+### End-to-end: the bruteforcer
+
+Replacing per-key SHA-256 with the `sha2x4` multi-buffer pipeline, measured
+back-to-back to neutralize thermal drift:
+
+| Measurement | Baseline (minio per-key) | Optimized (`sha2x4` staged) | Delta |
+| --- | ---: | ---: | ---: |
+| A3 — `BenchmarkKeyStreamPerKey`, `GOMAXPROCS=1` | 136.7 ns/key | 118.5 ns/key | **−13.35%** (`benchstat`, p=0.000, n=10) |
+| A4 — runtime throughput, 8 threads | ~38.0M keys/sec | ~45.1M keys/sec | **+18.7%** |
+
+The single-thread number is exactly what Amdahl's law predicts: SHA-256 was ~23%
+of the per-key cost, so making it ~2.6x faster shrinks that slice to ~9% and
+predicts ~−14% overall; the measured −13.35% is within a fraction of a point, the
+small gap being the extra memory traffic of staging digests between the SHA and
+RIPEMD passes. The 8-thread gain is larger because the batched kernel retires far
+fewer instructions per key, easing the shared-resource pressure that builds up
+when all cores hash at once.
+
+This also explains why the original ">=20% per-key" target was optimistic: with
+SHA-256 only ~23% of the cost, no SHA-only optimization can clear 20% single-core
+on its own. The remaining headroom now lives in RIPEMD-160 (already NEON, ~55%)
+and the EC/field work (~20%).
+
+### Staged vs fused HASH160
+
+`hash160mb` ships two bit-identical arm64 paths:
+
+- **staged** (default): a full multi-buffer SHA-256 pass into a pooled digest
+  buffer, then a full multi-buffer RIPEMD-160 pass.
+- **fused**: one kernel that keeps each 4-lane group's SHA-256 digests in
+  registers and feeds them straight into NEON RIPEMD-160 — no intermediate
+  buffer — verified bit-for-bit against the staged path and `btcutil.Hash160`.
+
+On M3 the two tie single-threaded (~585.6 vs ~586.2 µs at `n = 6144`) and the
+staged path is ~3% faster at 8 threads, because each kernel runs in its own
+deeply pipelined loop instead of starving the SHA pipeline of independent work.
+The staged path is therefore the arm64 default; the fused kernel is kept, fully
+tested, and selectable with `GOHASH160MB_FORCE=fused`.
+
+### Reproduce
+
+```bash
+# Component SHA-256 (in the sha256mb module): scalar vs sha2x4
+cd ../sha256mb
+GOMAXPROCS=1 GOSHA256MB_FORCE=scalar \
+  go test -run '^$' -bench '^BenchmarkHash33$' -benchmem -count=10 ./ | tee /tmp/scalar.txt
+GOMAXPROCS=1 GOSHA256MB_FORCE=sha2x4 \
+  go test -run '^$' -bench '^BenchmarkHash33$' -benchmem -count=10 ./ | tee /tmp/sha2x4.txt
+benchstat /tmp/scalar.txt /tmp/sha2x4.txt
+
+# End-to-end per-key (A3), this module
+GOMAXPROCS=1 go test -ldflags="-s -w -linkmode=external" \
+  -run '^$' -bench '^BenchmarkKeyStreamPerKey$' -benchmem -benchtime=2s -count=6 .
+```
+
+amd64 SIMD SHA-256 (AVX-512 / SHA-NI) is a documented follow-up — it cannot be
+measured or validated on the M3 reference machine, so `sha256mb` currently runs
+the scalar backend on amd64. See the `sha256mb`
+[PERFORMANCE.md](https://github.com/Asylian21/sha256mb/blob/main/PERFORMANCE.md)
+for the full methodology.
+
 ## Memory Usage
 
 - Per worker: batch buffers for Hash160 output and elliptic-curve scratch values.
 - Target database: one Go map entry per valid P2PKH address, keyed by `[20]byte`.
-- Checkpoints: small JSON files containing one saved next private key per segment.
+- Checkpoints: a small JSON file containing the single scan frontier (next private key).
 
 Large address lists, checkpoint files, and match outputs are intentionally git-ignored because they are runtime inputs or outputs, not source artifacts.
 
