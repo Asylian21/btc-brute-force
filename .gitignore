@@ -80,7 +80,6 @@ logs/
 # ============================================================================
 # Checkpoints (runtime resume state, regenerated every 10s)
 # ============================================================================
-checkpoint.json
 checkpoint.json.tmp
 example-checkpoint.json
 example-checkpoint.json.tmp
