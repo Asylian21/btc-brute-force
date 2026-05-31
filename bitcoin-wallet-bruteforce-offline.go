@@ -29,12 +29,13 @@ Performance Optimizations:
 	  addition amortize over 6 keys instead of 1
 	- Batched (Montgomery) field inversion: a single inversion per batch
 	  amortizes the only division in the affine addition formula
-	- SIMD-accelerated SHA256 hashing (minio/sha256-simd)
-	- Multi-buffer SIMD RIPEMD160 over the whole batch (github.com/Asylian21/ripemd160-asm;
-	  4-lane NEON on arm64, scalar fallback elsewhere) — the RIPEMD160 half of Hash160 is
-	  the second-largest CPU cost after the EC field math, so it is vectorized across lanes
-	- Zero-copy Hash160: RIPEMD160 writes its 20-byte digests straight into the
-	  caller's [][20]byte result slice (ripemd160mb.Size == 20), so the batch needs
+	- Fused multi-buffer HASH160 over the whole batch (github.com/Asylian21/sha256mb +
+	  github.com/Asylian21/ripemd160-asm): multi-buffer SHA-256 (arm64 hardware-SHA
+	  interleave, scalar fallback) feeds multi-buffer RIPEMD-160 (4-lane NEON on arm64),
+	  the two hashes being the largest CPU cost after the EC field math, so both are
+	  vectorized across lanes in a single pass per batch
+	- Zero-copy Hash160: the HASH160 pass writes its 20-byte digests straight into the
+	  caller's [][20]byte result slice (hash160mb.Size == 20), so the batch needs
 	  no intermediate output buffer and no per-key scatter copy
 	- Alloc-free hot path: reused per-worker scratch buffers
 	- Compressed public keys (33 bytes vs 65 bytes)
@@ -55,7 +56,7 @@ package main
 
 import (
 	"bufio"           // Buffered I/O for efficient file reading/writing
-	"crypto/rand"     // CSPRNG for the per-worker random starting scalar
+	"crypto/rand"     // CSPRNG for the educational generateKeyAndHash160 primitive
 	"encoding/binary" // Encode the per-worker key offset into a scalar
 	"encoding/hex"    // Hex encoding for private key output
 	"encoding/json"   // Checkpoint serialization (resume support)
@@ -73,13 +74,15 @@ import (
 	"time"            // Time operations for statistics
 	"unsafe"          // Reinterpret out's [][20]byte backing as []byte for zero-copy Hash160
 
-	ripemd160mb "github.com/Asylian21/ripemd160-asm" // Multi-buffer SIMD RIPEMD160 (NEON 4-lane on arm64)
-	field "github.com/Asylian21/secp256k1-field"     // Fast secp256k1 Fp arithmetic (5x52 limbs, arm64/amd64 asm)
-	"github.com/btcsuite/btcd/btcec/v2"              // Bitcoin SECP256k1 elliptic curve operations
-	"github.com/btcsuite/btcutil"                    // Bitcoin utility functions (Hash160, reference path)
-	"github.com/btcsuite/btcutil/base58"             // Base58 encoding for addresses
-	secp "github.com/decred/dcrd/dcrec/secp256k1/v4" // Low-level EC point arithmetic (incremental walk)
-	sha256simd "github.com/minio/sha256-simd"        // SIMD-accelerated SHA256 (2-3x faster)
+	ripemd160mb "github.com/Asylian21/ripemd160-asm"    // Multi-buffer SIMD RIPEMD160 (NEON 4-lane on arm64)
+	field "github.com/Asylian21/secp256k1-field"        // Fast secp256k1 Fp arithmetic (5x52 limbs, arm64/amd64 asm)
+	sha256mb "github.com/Asylian21/sha256mb"            // Multi-buffer SHA-256 (arm64 HW-SHA interleave, scalar fallback)
+	hash160mb "github.com/Asylian21/sha256mb/hash160mb" // Fused multi-buffer HASH160 = RIPEMD160(SHA256(pubkey))
+	"github.com/btcsuite/btcd/btcec/v2"                 // Bitcoin SECP256k1 elliptic curve operations
+	"github.com/btcsuite/btcutil"                       // Bitcoin utility functions (Hash160, reference path)
+	"github.com/btcsuite/btcutil/base58"                // Base58 encoding for addresses
+	secp "github.com/decred/dcrd/dcrec/secp256k1/v4"    // Low-level EC point arithmetic (incremental walk)
+	sha256simd "github.com/minio/sha256-simd"           // SIMD-accelerated SHA256 (2-3x faster)
 )
 
 // ============================================================================
@@ -228,13 +231,13 @@ func encodeP2PKH(hash160 [20]byte) string {
 // keyBatchSize is the number of LINEAR walk steps amortized by a single field
 // inversion; each step yields endoFactor (6) keys. It is also the size of the
 // precomputed multiples-of-G table. Larger batches spread the one inversion over
-// more steps, but the per-worker scratch (notably digBuf, which is
-// endoFactor*keyBatchSize*32 bytes) and the shared table eventually spill out of
-// cache. With endoFactor=6 the per-key cost is dominated by hashing rather than
+// more steps, but the per-worker scratch (notably pubBuf, which is
+// endoFactor*keyBatchSize*pubStride bytes) and the shared table eventually spill
+// out of cache. With endoFactor=6 the per-key cost is dominated by hashing rather than
 // the inversion, so single-thread cost is essentially flat across 512..2048
 // (~140 ns/key on Apple M3). 1024 is chosen because its smaller working set gives
-// the best sustained multi-worker throughput (~39M keys/sec on an 8-core M3, vs
-// ~38M at 2048) while keeping the inversion well amortized (256 already regresses).
+// the best sustained multi-worker throughput (latest measured 37,038,393 keys/sec
+// on an 8-core M3) while keeping the inversion well amortized (256 already regresses).
 const keyBatchSize = 1024
 
 // Precomputed affine multiples of the base point: mulGx[j]/mulGy[j] = ((j+1)*G).
@@ -353,6 +356,15 @@ Invariant: at the start of each batch the affine point (px, py) equals
 (base + offset)*G, so out[j] in nextBatch corresponds to private scalar
 base + start + j.
 */
+// pubStride is the per-pubkey slot width in keyStream.pubBuf. A compressed
+// pubkey is 33 bytes; the slot is padded to 64 so each message sits wholly
+// within one 64-byte cache line. The multi-buffer HASH160 kernels load 16+16
+// bytes plus a single trailing byte per message, and a cache-line-aligned slot
+// avoids the line-split penalty those loads would otherwise pay at a packed
+// 33-byte stride (measured ~5% per-key). Bytes 33..63 of each slot are stale
+// and never read — the kernels use a fixed 33-byte single-block SHA-256 padding.
+const pubStride = 64
+
 type keyStream struct {
 	base     secp.ModNScalar // starting private scalar k0
 	px, py   field.Val       // running base point P = (base+offset)*G, affine (mag 1)
@@ -360,28 +372,21 @@ type keyStream struct {
 	dx       []field.Val     // scratch: denominators (x_iG - x_P) then their inverses
 	pre      []field.Val     // scratch: Montgomery prefix products
 	degenIdx []int           // batch indices where P == ±iG (zero denominator)
-	pub      [33]byte        // stable compressed-pubkey scratch (avoids per-key alloc)
-	digBuf   []byte          // batch scratch: SHA-256 digests (endoFactor*keyBatchSize*32) fed to multi-buffer RIPEMD-160
+	pubBuf   []byte          // batch scratch: endoFactor*keyBatchSize compressed pubkeys at pubStride, fed to multi-buffer HASH160
 }
 
 // setBase derives the affine starting point P = base*G from a 32-byte seed,
-// reducing the seed mod N. Used by both the production and test constructors.
+// reducing the seed mod N, and resets the walk offset to 0. It is used both to
+// construct a stream and to REBASE an existing stream to a new chunk start, so
+// the worker can reuse one stream's scratch buffers across many chunks.
 func (ks *keyStream) setBase(seed [32]byte) {
 	ks.base.SetBytes(&seed)
+	ks.offset = 0 // fresh walk from this base (rebasing for a new chunk)
 	var p secp.JacobianPoint
 	secp.ScalarBaseMultNonConst(&ks.base, &p)
 	p.ToAffine()
 	ks.px = fieldFromDcrd(&p.X)
 	ks.py = fieldFromDcrd(&p.Y)
-}
-
-// newKeyStream seeds a worker's key stream from the system CSPRNG.
-func newKeyStream() (*keyStream, error) {
-	var seed [32]byte
-	if _, err := rand.Read(seed[:]); err != nil {
-		return nil, err
-	}
-	return newKeyStreamFromSeed(seed), nil
 }
 
 // newKeyStreamFromSeed builds a key stream that starts at a known scalar instead
@@ -392,7 +397,7 @@ func newKeyStreamFromSeed(seed [32]byte) *keyStream {
 		dx:       make([]field.Val, keyBatchSize),
 		pre:      make([]field.Val, keyBatchSize),
 		degenIdx: make([]int, 0, 4),
-		digBuf:   make([]byte, endoFactor*keyBatchSize*32),
+		pubBuf:   make([]byte, endoFactor*keyBatchSize*pubStride),
 	}
 	ks.setBase(seed)
 	return ks
@@ -413,9 +418,9 @@ func (ks *keyStream) affineAt(absOffset uint64, x, y *field.Val) {
 	*y = fieldFromDcrd(&p.Y)
 }
 
-// hashSextet writes SHA256(compressed pubkey) for the 6 GLV+negation variants of
-// the affine point (x, y) into the batch digest buffer. For step p of m linear
-// walk steps, variant v lands in slot v*m+p (digBuf[(v*m+p)*32:]):
+// writeSextet serializes the 6 compressed public keys for the GLV+negation
+// variants of the affine point (x, y) into the batch pubkey buffer. For step p
+// of m linear walk steps, variant v lands in slot v*m+p (pubBuf[(v*m+p)*pubStride:]):
 //
 //	v0 (x, +y)         v1 (x, -y)
 //	v2 (beta*x, +y)    v3 (beta*x, -y)
@@ -426,54 +431,64 @@ func (ks *keyStream) affineAt(absOffset uint64, x, y *field.Val) {
 // variants (-y) are the point negations -P, whose private scalar is n-k; because
 // y is never serialized (only its parity selects the 02/03 prefix), negation is
 // just the prefix flip pfx^1 and costs zero field operations. The marginal cost
-// over a single key is therefore 2 field muls (beta*x, beta^2*x) + 6 SHA-256; the
-// RIPEMD-160 half of Hash160 runs later in one multi-buffer pass over the whole
-// batch (see nextBatch), which is where the SIMD speedup comes from.
+// over a single key is therefore 2 field muls (beta*x, beta^2*x) plus the byte
+// serialization; BOTH hashes of Hash160 then run later in one fused multi-buffer
+// pass over the whole batch (see nextBatch), which is where the SIMD speedup
+// comes from.
 //
-// It allocates nothing (pub lives on the heap-resident stream); each digest is
-// stored with a single array assignment rather than a copy. Written as
-// straight-line code (no closure) to guarantee zero heap allocations and full
-// inlining of the per-variant work.
+// It allocates nothing: x is serialized once into a stack scratch and copied
+// into both parity slots (which share the same x, differing only in prefix).
+// Written as straight-line code (no closure) to guarantee zero heap allocations
+// and full inlining of the per-variant work. Only bytes [0,33) of each slot are
+// written; the slot padding up to pubStride is left untouched and never read by
+// the HASH160 kernel.
 //
 // Preconditions: x and y MUST be normalized — PutBytesUnchecked needs canonical
 // limbs, and IsOddBit needs the canonical low bit for the prefix. beta*x and
 // beta^2*x are normalized here before serialization.
-func (ks *keyStream) hashSextet(x, y *field.Val, p, m int) {
+func (ks *keyStream) writeSextet(x, y *field.Val, p, m int) {
 	pfx := byte(0x02) | byte(y.IsOddBit())
 	flip := pfx ^ 0x01
+	var xb [32]byte
 
 	// v0/v1: identity x in both parities (x, +/-y).
-	x.PutBytesUnchecked(ks.pub[1:33])
-	ks.pub[0] = pfx
-	*(*[32]byte)(ks.digBuf[(0*m+p)*32:]) = sha256simd.Sum256(ks.pub[:])
-	ks.pub[0] = flip
-	*(*[32]byte)(ks.digBuf[(1*m+p)*32:]) = sha256simd.Sum256(ks.pub[:])
+	x.PutBytesUnchecked(xb[:])
+	o := (0*m + p) * pubStride
+	ks.pubBuf[o] = pfx
+	copy(ks.pubBuf[o+1:o+33], xb[:])
+	o = (1*m + p) * pubStride
+	ks.pubBuf[o] = flip
+	copy(ks.pubBuf[o+1:o+33], xb[:])
 
 	// v2/v3: first endomorphism image (beta*x, +/-y). Same y, so reuse pfx/flip.
 	var bx field.Val
 	bx.Mul2(&betaVal, x)
 	bx.Normalize()
-	bx.PutBytesUnchecked(ks.pub[1:33])
-	ks.pub[0] = pfx
-	*(*[32]byte)(ks.digBuf[(2*m+p)*32:]) = sha256simd.Sum256(ks.pub[:])
-	ks.pub[0] = flip
-	*(*[32]byte)(ks.digBuf[(3*m+p)*32:]) = sha256simd.Sum256(ks.pub[:])
+	bx.PutBytesUnchecked(xb[:])
+	o = (2*m + p) * pubStride
+	ks.pubBuf[o] = pfx
+	copy(ks.pubBuf[o+1:o+33], xb[:])
+	o = (3*m + p) * pubStride
+	ks.pubBuf[o] = flip
+	copy(ks.pubBuf[o+1:o+33], xb[:])
 
 	// v4/v5: second endomorphism image (beta^2*x, +/-y) = beta*(beta*x).
 	var b2x field.Val
 	b2x.Mul2(&betaVal, &bx)
 	b2x.Normalize()
-	b2x.PutBytesUnchecked(ks.pub[1:33])
-	ks.pub[0] = pfx
-	*(*[32]byte)(ks.digBuf[(4*m+p)*32:]) = sha256simd.Sum256(ks.pub[:])
-	ks.pub[0] = flip
-	*(*[32]byte)(ks.digBuf[(5*m+p)*32:]) = sha256simd.Sum256(ks.pub[:])
+	b2x.PutBytesUnchecked(xb[:])
+	o = (4*m + p) * pubStride
+	ks.pubBuf[o] = pfx
+	copy(ks.pubBuf[o+1:o+33], xb[:])
+	o = (5*m + p) * pubStride
+	ks.pubBuf[o] = flip
+	copy(ks.pubBuf[o+1:o+33], xb[:])
 }
 
 /*
 nextBatch advances the stream by m = len(out)/endoFactor linear walk steps and
 writes len(out) Hash160s to out. Each linear step emits endoFactor (6) keys via
-hashSextet, laid out variant-major: for step p, variant v occupies slot v*m+p, so
+writeSextet, laid out variant-major: for step p, variant v occupies slot v*m+p, so
 len(out) MUST be endoFactor*m.
 
 It returns the absolute LINEAR key offset of out[0]. The slot v*m+i holds the key
@@ -489,19 +504,20 @@ Math per linear step (P is the batch base point, Q = (j+1)*G from the table):
 	y3 = λ(x_P - x3) - y_P
 
 The m divisions share a single inversion via Montgomery's trick. Each computed
-point (x3, y3) then yields all 6 GLV+negation keys via hashSextet for 2 extra
-field multiplies (beta*x3, beta^2*x3) and 6 hashes — no extra inversion.
+point (x3, y3) then yields all 6 GLV+negation keys via writeSextet for 2 extra
+field multiplies (beta*x3, beta^2*x3) — no extra inversion. The two hashes of
+Hash160 run afterwards in one fused multi-buffer pass over the whole batch.
 */
 func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
 	total := len(out)       // identity + endomorphism candidates
 	m := total / endoFactor // linear walk steps (affine points computed)
 	start := ks.offset
 
-	// Phase 1: SHA-256 every point's compressed pubkey — all 6 GLV+negation
-	// variants — into the batch digest buffer. out[0] is the current base point P
-	// (already affine, normalized): hashSextet writes its variant v digest to slot
-	// v*m (see the slot layout documented on hashSextet).
-	ks.hashSextet(&ks.px, &ks.py, 0, m)
+	// Phase 1: serialize every point's compressed pubkey — all 6 GLV+negation
+	// variants — into the batch pubkey buffer. out[0] is the current base point P
+	// (already affine, normalized): writeSextet writes its variant v pubkey to slot
+	// v*m (see the slot layout documented on writeSextet).
+	ks.writeSextet(&ks.px, &ks.py, 0, m)
 
 	// -x_P and -y_P are reused for every key in this batch.
 	var negPx, negPy field.Val
@@ -538,9 +554,9 @@ func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
 	}
 	ks.dx[0].Set(&inv) // 1/dx[0]
 
-	// Compute each Q = P + (j+1)*G at position p = j+1 and hash all 6 variants
-	// (digest of variant v -> slot v*m+p). The last one (j == m-1, position m)
-	// becomes the base point for the next batch and is not hashed this round.
+	// Compute each Q = P + (j+1)*G at position p = j+1 and serialize all 6 variants
+	// (pubkey of variant v -> slot v*m+p). The last one (j == m-1, position m)
+	// becomes the base point for the next batch and is not emitted this round.
 	var lam, lamSq, x3, negX3, t, num, y3 field.Val
 	for j := 0; j < m; j++ {
 		num.Add2(&mulGy[j], &negPy)                  // y_Q - y_P (mag 3)
@@ -555,7 +571,7 @@ func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
 		y3.Normalize()
 
 		if j < m-1 {
-			ks.hashSextet(&x3, &y3, j+1, m)
+			ks.writeSextet(&x3, &y3, j+1, m)
 		} else {
 			ks.px.Set(&x3) // advance base point to P + m*G
 			ks.py.Set(&y3)
@@ -568,22 +584,23 @@ func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
 		var x, y field.Val
 		ks.affineAt(start+uint64(j)+1, &x, &y)
 		if j < m-1 {
-			ks.hashSextet(&x, &y, j+1, m)
+			ks.writeSextet(&x, &y, j+1, m)
 		} else {
 			ks.px.Set(&x)
 			ks.py.Set(&y)
 		}
 	}
 
-	// Phase 2: a single multi-buffer RIPEMD-160 pass over all `total` SHA-256
-	// digests (the expensive hash, vectorized across SIMD lanes by ripemd160mb),
-	// written STRAIGHT into the caller's slice. out is [][20]byte whose backing
-	// array is total*20 contiguous bytes and ripemd160mb.Size == 20, so Hash32's
-	// dst[i*20:(i+1)*20] layout lands each digest exactly on out[i] — no
-	// intermediate buffer and no scatter copy. With the library's scalar
-	// fallback this is bit-identical to a per-key RIPEMD-160.
-	dst := unsafe.Slice((*byte)(unsafe.Pointer(&out[0])), total*ripemd160mb.Size)
-	ripemd160mb.Hash32(dst, ks.digBuf[:total*32], total)
+	// Phase 2: a single fused multi-buffer HASH160 pass — multi-buffer SHA-256
+	// (sha256mb) feeding multi-buffer RIPEMD-160 (ripemd160-asm) — over all
+	// `total` compressed pubkeys, written STRAIGHT into the caller's slice. out
+	// is [][20]byte whose backing array is total*20 contiguous bytes and
+	// hash160mb.Size == 20, so dst[i*20:(i+1)*20] lands each HASH160 exactly on
+	// out[i] — no intermediate buffer and no scatter copy. Only the first 33
+	// bytes of each pubStride slot are read. With the library's scalar fallback
+	// this is bit-identical to a per-key btcutil.Hash160.
+	dst := unsafe.Slice((*byte)(unsafe.Pointer(&out[0])), total*hash160mb.Size)
+	hash160mb.FromPubkeys33(dst, ks.pubBuf, total, pubStride)
 
 	ks.offset += uint64(m)
 	return start
@@ -599,7 +616,7 @@ func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
 //
 // lambda*k / lambda^2*k are the endomorphism images' scalars; the odd variants
 // are the point negations -P, whose scalar is n-k (ModNScalar.Negate). v%2==1
-// selects the negated parity. This mirrors the slot layout produced by hashSextet
+// selects the negated parity. This mirrors the slot layout produced by writeSextet
 // (variant v of step p lands in out[v*m+p]). Only used on the rare match path, so
 // the extra scalar multiply/negate is irrelevant to throughput.
 func (ks *keyStream) privateKeyForVariant(absOffset uint64, v int) *btcec.PrivateKey {
@@ -701,62 +718,111 @@ func publishCheckedSample(privateKey *btcec.PrivateKey, hash160 [20]byte) {
 }
 
 // ============================================================================
-// CHECKPOINT: Resumable Progress (every-10s JSON snapshot)
+// CHECKPOINT: Resumable, gap-free systematic scan (every-10s JSON snapshot)
 // ============================================================================
 //
-// Each worker walks a private-key SEGMENT starting from its own random base
-// scalar: base, base+1, base+2, ... So "where we stopped" is fully described,
-// per segment, by the NEXT private key it would process (base + keys produced).
-// The checkpoint stores that key for every segment; --resume seeds each worker
-// from its saved key and generation continues exactly where it left off.
+// The key space is scanned SYSTEMATICALLY from private key 1 upward, with a hard
+// guarantee that no key is ever skipped — no matter how many worker threads are
+// used, and even if that count changes between runs.
 //
-// Storing a single value (e.g. the console sample) is NOT enough: that sample
-// comes only from worker 0, while every segment advances independently.
+// To stay correct under a changing thread count, work is NOT split into one
+// fixed range per thread. Instead the space is divided into fixed contiguous
+// CHUNKS of chunkSteps linear keys each (chunk c covers private keys
+// [startKey + c*chunkSteps, startKey + (c+1)*chunkSteps)). A single global cursor
+// hands out the next chunk; every worker simply claims the next unclaimed chunk
+// and walks it in order. Threads are therefore interchangeable: with N workers,
+// N chunks are processed at once — change N and only the parallelism changes,
+// never the set of keys covered.
 //
-// SEGMENTS ARE DECOUPLED FROM THREADS so the thread count can change between
-// runs (e.g. 4 -> 8 -> 12 -> 4) without losing or corrupting anything:
-//   - threads  > saved segments: resume all saved, ADD fresh random segments.
-//   - threads == saved segments: resume all (the common case).
-//   - threads  < saved segments: resume the first `threads`, and PRESERVE the
-//     surplus segments untouched ("frozen") so a later higher-thread run picks
-//     them up exactly where they were. Nothing is dropped.
+// THE RESUME POSITION IS A SINGLE FRONTIER. Chunks are handed out in increasing
+// order and each is walked start-to-finish, so the lowest chunk still being
+// processed by any active worker is the "frontier": every key below it is
+// guaranteed done. The checkpoint stores exactly that frontier key. On resume
+// the cursor restarts there, re-checking at most (threads-1) already-finished
+// chunks (cheap, idempotent) and NEVER skipping a key.
+//
+// The GLV endomorphism still emits endoFactor (6) keys per linear step, but only
+// the linear key (variant 0) advances the contiguous frontier; the other 5
+// variants are bonus checks of scattered keys that can never create a gap.
 
-// checkpointVersion lets future format changes be detected when resuming.
-const checkpointVersion = 1
+// checkpointVersion lets the format be detected on resume. v2 is the
+// single-frontier systematic-scan format (v1 was the old per-segment format).
+const checkpointVersion = 2
+
+// chunkBatches is the number of nextBatch calls in one work-stealing chunk;
+// chunkSteps is the linear keys it spans. Each chunk costs ONE base rebase (a
+// scalar multiplication) amortized over chunkSteps*endoFactor keys, so a larger
+// chunk lowers that overhead and global-cursor contention, while a smaller chunk
+// shrinks the work re-done on resume (at most threads*chunkSteps linear keys).
+// 16 batches keeps the rebase overhead well under 1% and a resume re-check tiny.
+const (
+	chunkBatches = 16
+	chunkSteps   = chunkBatches * keyBatchSize
+)
+
+// startKeySeed is private key 1: the first valid secp256k1 scalar and the start
+// of the systematic scan. (Key 0 is the point at infinity — an invalid private
+// key that breaks the affine walk — so the scan begins at 1, never 0.)
+var startKeySeed = [32]byte{31: 0x01}
 
 // checkpointMu serializes checkpoint writes (the stats ticker and the shutdown
 // handler can both write), so the temp-file + rename is never interleaved.
 var checkpointMu sync.Mutex
 
-// workerState exposes a segment's resumable position to the checkpoint writer
-// without sharing the (non-thread-safe) keyStream itself. base is fixed for the
-// segment's lifetime; offset is published atomically after every batch. Frozen
-// segments (more saved than threads) keep offset == 0 so their saved key and
-// cumulative count are rewritten unchanged every checkpoint.
-type workerState struct {
-	base      [32]byte // starting scalar (constant once the stream is created)
-	offset    uint64   // atomic: LINEAR walk steps THIS run (next key = base + offset); actual keys checked = offset*endoFactor
-	priorKeys uint64   // keys this segment checked in previous runs (for cumulative count, endoFactor-scaled)
+// scanState is the shared, thread-count-agnostic scan cursor: nextChunk is the
+// index of the next chunk to hand out. Workers claim chunks with one atomic add,
+// so each chunk is processed by exactly one worker and the space is covered
+// exactly once regardless of how many workers run.
+type scanState struct {
+	nextChunk uint64 // atomic
 }
 
-// workerCheckpoint is the saved position of a single segment.
-type workerCheckpoint struct {
-	ID             int    `json:"id"`
-	NextPrivateKey string `json:"next_private_key"` // 64 hex chars; where this segment resumes
-	KeysProcessed  uint64 `json:"keys_processed"`   // cumulative keys processed by this segment
+// workerProgress publishes the chunk a single worker is currently processing
+// (claimed, possibly unfinished). The checkpoint frontier is the minimum of
+// these over active workers, so it never sits above an unfinished chunk. The
+// padding keeps each worker's counter on its own cache line (no false sharing).
+type workerProgress struct {
+	currentChunk uint64 // atomic
+	_            [7]uint64
 }
 
-// checkpointFile is the full on-disk JSON snapshot. len(Workers) is the number
-// of segments tracked, which may exceed Threads (the active worker count of the
-// run that wrote the file) when a later run used fewer threads.
+// chunkBaseSeed returns the 32-byte private key at the start of chunk c:
+// startKey(1) + c*chunkSteps. Within practical limits (a uint64 of linear offset
+// is astronomically more scanning than is physically feasible) this never wraps.
+func chunkBaseSeed(c uint64) [32]byte {
+	var seed [32]byte
+	binary.BigEndian.PutUint64(seed[24:], 1+c*chunkSteps)
+	return seed
+}
+
+// chunkIndexFromKeySeed converts a frontier private key back to its chunk index,
+// flooring to the chunk boundary so an unaligned or hand-edited key can never
+// cause a skip (the partial chunk is simply re-scanned). It rejects keys outside
+// the supported uint64 linear-offset range or below 1.
+func chunkIndexFromKeySeed(seed [32]byte) (uint64, error) {
+	for i := 0; i < 24; i++ {
+		if seed[i] != 0 {
+			return 0, fmt.Errorf("frontier key is beyond the supported 2^64 scan range")
+		}
+	}
+	keyVal := binary.BigEndian.Uint64(seed[24:])
+	if keyVal < 1 {
+		return 0, fmt.Errorf("frontier key must be >= 1 (key 0 is invalid)")
+	}
+	return (keyVal - 1) / chunkSteps, nil
+}
+
+// checkpointFile is the on-disk JSON snapshot of the systematic scan. The scan
+// position is a SINGLE frontier (NextPrivateKey): every key below it has been
+// checked, and the scan resumes there with ANY thread count.
 type checkpointFile struct {
-	Version      int                `json:"version"`
-	UpdatedAt    string             `json:"updated_at"`
-	Threads      int                `json:"threads"`  // active workers in the writing run
-	Segments     int                `json:"segments"` // total segments tracked (== len(workers))
-	KeyBatchSize int                `json:"key_batch_size"`
-	TotalKeys    uint64             `json:"total_keys"` // cumulative across all resumes
-	Workers      []workerCheckpoint `json:"workers"`
+	Version        int    `json:"version"`
+	UpdatedAt      string `json:"updated_at"`
+	Threads        int    `json:"threads"`     // active workers in the writing run (informational)
+	ChunkSteps     uint64 `json:"chunk_steps"` // linear keys per chunk (informational)
+	KeyBatchSize   int    `json:"key_batch_size"`
+	NextPrivateKey string `json:"next_private_key"` // frontier: lowest key not yet guaranteed done
+	TotalKeys      uint64 `json:"total_keys"`       // keys checked up to the frontier (endoFactor per linear key)
 }
 
 // privateKeyHexFromBase returns hex(base + offset mod N): the absolute private
@@ -789,31 +855,31 @@ func parsePrivateKeyHex(s string) ([32]byte, error) {
 	return seed, nil
 }
 
-// writeCheckpoint atomically saves the current position of every segment. It
-// writes to a temp file then renames, so a crash mid-write never corrupts the
-// existing checkpoint. activeThreads is the number of segments being advanced by
-// workers (the rest are frozen); baseTotal is the cumulative key count carried
-// over from a resumed run (0 for a fresh run).
-func writeCheckpoint(path string, states []*workerState, counter *uint64, baseTotal uint64, activeThreads int) error {
-	cp := checkpointFile{
-		Version:      checkpointVersion,
-		UpdatedAt:    time.Now().UTC().Format(time.RFC3339),
-		Threads:      activeThreads,
-		Segments:     len(states),
-		KeyBatchSize: keyBatchSize,
-		TotalKeys:    baseTotal + atomic.LoadUint64(counter),
-		Workers:      make([]workerCheckpoint, len(states)),
-	}
-	for i, ws := range states {
-		offset := atomic.LoadUint64(&ws.offset)
-		cp.Workers[i] = workerCheckpoint{
-			ID: i,
-			// NextPrivateKey resumes the LINEAR walk (base+offset); the
-			// endomorphism keys are re-derived from it. KeysProcessed counts the
-			// actual keys checked, which is endoFactor per linear step.
-			NextPrivateKey: privateKeyHexFromBase(ws.base, offset),
-			KeysProcessed:  ws.priorKeys + offset*endoFactor,
+// writeCheckpoint atomically saves the scan frontier. It writes to a temp file
+// then renames, so a crash mid-write never corrupts the existing checkpoint.
+//
+// The frontier chunk is the lowest chunk any active worker is still processing;
+// every key below it is done. Resuming there can re-check at most
+// threads*chunkSteps keys but can NEVER skip a key. The stored next_private_key
+// is the first key of that frontier chunk, and total_keys is the keys checked up
+// to it (endoFactor per linear key).
+func writeCheckpoint(path string, scan *scanState, progress []workerProgress, activeThreads int) error {
+	frontier := atomic.LoadUint64(&scan.nextChunk) // upper bound before any claim
+	for i := range progress {
+		if cc := atomic.LoadUint64(&progress[i].currentChunk); cc < frontier {
+			frontier = cc
 		}
+	}
+	frontierOffset := frontier * chunkSteps // linear keys fully covered
+
+	cp := checkpointFile{
+		Version:        checkpointVersion,
+		UpdatedAt:      time.Now().UTC().Format(time.RFC3339),
+		Threads:        activeThreads,
+		ChunkSteps:     chunkSteps,
+		KeyBatchSize:   keyBatchSize,
+		NextPrivateKey: privateKeyHexFromBase(startKeySeed, frontierOffset),
+		TotalKeys:      frontierOffset * endoFactor,
 	}
 
 	data, err := json.MarshalIndent(&cp, "", "  ")
@@ -842,67 +908,24 @@ func readCheckpoint(path string) (*checkpointFile, error) {
 		return nil, fmt.Errorf("invalid checkpoint JSON: %w", err)
 	}
 	if cp.Version != checkpointVersion {
-		return nil, fmt.Errorf("unsupported checkpoint version %d (expected %d)", cp.Version, checkpointVersion)
+		return nil, fmt.Errorf("unsupported checkpoint version %d (expected %d); delete the file to start a fresh scan", cp.Version, checkpointVersion)
 	}
-	if len(cp.Workers) == 0 {
-		return nil, fmt.Errorf("checkpoint has no worker positions")
+	if cp.NextPrivateKey == "" {
+		return nil, fmt.Errorf("checkpoint has no frontier key (next_private_key)")
 	}
 	return &cp, nil
 }
 
-// buildStreams sets up the segments for a run, tolerant of a changed thread
-// count between runs. It returns:
-//   - streams: one keyStream per ACTIVE worker (len == numThreads); streams[i]
-//     pairs with states[i].
-//   - states: one workerState per SEGMENT (len == max(numThreads, savedSegments)).
-//     Indices [0, numThreads) are active (advanced by workers); indices
-//     [numThreads, len) are frozen (preserved unchanged, no worker).
-//
-// Mapping rules (saved = resume.Workers):
-//   - i < len(saved): resume segment i from its saved key (active if i < numThreads,
-//     otherwise frozen so it is not lost).
-//   - i >= len(saved): a brand-new random segment (only when numThreads > len(saved),
-//     hence always active).
-func buildStreams(numThreads int, resume *checkpointFile) ([]*keyStream, []*workerState, error) {
-	var saved []workerCheckpoint
-	if resume != nil {
-		saved = resume.Workers
+// resumeStartChunk turns a loaded checkpoint into the chunk index the scan
+// should restart from. It decodes the frontier key and floors it to a chunk
+// boundary, so even a hand-edited key resumes at or below where it stopped —
+// re-scanning a partial chunk at worst, never skipping keys.
+func resumeStartChunk(cp *checkpointFile) (uint64, error) {
+	seed, err := parsePrivateKeyHex(cp.NextPrivateKey)
+	if err != nil {
+		return 0, fmt.Errorf("frontier key: %w", err)
 	}
-
-	totalSegments := numThreads
-	if len(saved) > totalSegments {
-		totalSegments = len(saved)
-	}
-
-	streams := make([]*keyStream, numThreads)
-	states := make([]*workerState, totalSegments)
-
-	for i := 0; i < totalSegments; i++ {
-		ws := &workerState{}
-		if i < len(saved) {
-			// Resume an existing segment exactly where it stopped.
-			seed, err := parsePrivateKeyHex(saved[i].NextPrivateKey)
-			if err != nil {
-				return nil, nil, fmt.Errorf("segment %d: %w", i, err)
-			}
-			ws.base = seed
-			ws.priorKeys = saved[i].KeysProcessed
-			if i < numThreads {
-				streams[i] = newKeyStreamFromSeed(seed) // active
-			}
-			// else: frozen — no stream, offset stays 0, key rewritten unchanged.
-		} else {
-			// New random segment (only reached when numThreads > len(saved)).
-			s, err := newKeyStream()
-			if err != nil {
-				return nil, nil, err
-			}
-			ws.base = s.base.Bytes()
-			streams[i] = s
-		}
-		states[i] = ws
-	}
-	return streams, states, nil
+	return chunkIndexFromKeySeed(seed)
 }
 
 // ============================================================================
@@ -910,44 +933,41 @@ func buildStreams(numThreads int, resume *checkpointFile) ([]*keyStream, []*work
 // ============================================================================
 
 /*
-worker is a goroutine that continuously generates Bitcoin addresses and checks for matches.
+worker is a goroutine that systematically scans contiguous chunks of the key
+space and checks every generated Hash160 against the target set.
 
 Parameters:
-  - id: Worker thread identifier (for logging)
-  - wg: WaitGroup for coordinating shutdown (currently runs indefinitely)
-  - btcAddresses: Hash map of target addresses to search for
+  - id: Worker thread identifier (worker 0 also publishes console samples)
+  - wg: WaitGroup for coordinating shutdown
+  - targets: Hash map of target address hashes to search for
   - matchChan: Channel to send matches to the writer goroutine
   - counter: Shared atomic counter for statistics tracking
+  - ks: This worker's keyStream (owns all scratch buffers; rebased per chunk)
+  - scan: Shared cursor handing out the next chunk
+  - progress: This worker's published current-chunk (for the checkpoint frontier)
 
 Algorithm:
- 1. Seed a per-worker keyStream from crypto/rand (one scalar multiplication)
- 2. Pull a batch of keyBatchSize consecutive Hash160s via the EC walk
- 3. Check each Hash160 against the target database (O(1) hash map lookup)
+ 1. Claim the next contiguous chunk from the shared cursor (one atomic add)
+ 2. Publish it, then rebase the keyStream to the chunk's first key
+ 3. Walk the chunk in order (chunkBatches batches of the EC walk), checking
+    every Hash160 against the target database (O(1) hash map lookup)
  4. On a match, reconstruct the private key and send it to matchWriter
- 5. Advance the global counter by the batch size and repeat indefinitely
+ 5. Repeat. Because chunks are handed out in increasing order and walked in
+    full, the lowest in-progress chunk is a frontier below which nothing is
+    skipped — and any number of workers can cooperate on the same cursor.
 
 Performance Optimizations:
   - Batched affine EC walk: avoids a per-key scalar multiplication entirely
   - Batched (Montgomery) inversion: one field inversion per keyBatchSize keys
   - Allocation-free hot loop: all scratch buffers are owned by the keyStream
-  - One atomic counter update per batch (keyBatchSize keys) minimizes contention
-  - Non-blocking match sending: channel has buffer to prevent blocking
-
-Concurrency Model:
-  - Multiple workers run in parallel (typically numCPUs or numCPUs*2)
-  - Each worker operates independently with its own RNG state
-  - Shared state: btcAddresses (read-only), counter (atomic), matchChan (buffered)
-
-Statistics:
-  - One atomic counter update per batch (keyBatchSize keys) instead of per key,
-    cutting counter contention by a factor of keyBatchSize
-  - Typical throughput: ~1.5-1.7M keys/sec per fast core (Apple M3)
+  - One scalar-mult rebase per chunk (amortized over chunkSteps*endoFactor keys)
+  - One atomic counter update per batch minimizes contention
 */
-func worker(id int, wg *sync.WaitGroup, targets hash160Set, matchChan chan<- MatchResult, counter *uint64, stream *keyStream, state *workerState, stop <-chan struct{}) {
+func worker(id int, wg *sync.WaitGroup, targets hash160Set, matchChan chan<- MatchResult, counter *uint64, ks *keyStream, scan *scanState, progress *workerProgress, stop <-chan struct{}) {
 	defer wg.Done()
 
 	// Each batch yields endoFactor (6) keys per linear walk step. The layout is
-	// variant-major (see hashSextet): hashes[v*keyBatchSize+p] holds GLV+negation
+	// variant-major (see writeSextet): hashes[v*keyBatchSize+p] holds GLV+negation
 	// variant v in {0..5} at linear step p in [0,keyBatchSize).
 	hashes := make([][20]byte, endoFactor*keyBatchSize)
 	// Worker 0 publishes a console sample roughly every ~100k keys.
@@ -956,45 +976,57 @@ func worker(id int, wg *sync.WaitGroup, targets hash160Set, matchChan chan<- Mat
 	batchNum := 0
 
 	for {
-		// Cooperative shutdown: checked once per batch (every keyBatchSize keys),
-		// so it costs nothing on the hot path. Lets main write a final checkpoint.
+		// Cooperative shutdown between chunks.
 		select {
 		case <-stop:
 			return
 		default:
 		}
 
-		start := stream.nextBatch(hashes)
+		// Claim the next contiguous chunk and PUBLISH it before walking, so the
+		// checkpoint frontier (min currentChunk over workers) never sits above an
+		// unfinished chunk. A resume re-checks at most one chunk per worker.
+		c := atomic.AddUint64(&scan.nextChunk, 1) - 1
+		atomic.StoreUint64(&progress.currentChunk, c)
 
-		// One atomic per batch keeps contention low. len(hashes) counts both the
-		// identity and endomorphism keys actually checked against the target set.
-		atomic.AddUint64(counter, uint64(len(hashes)))
+		// Rebase to the chunk's first key (one scalar multiplication, amortized
+		// over the whole chunk), then walk the chunk in strict order.
+		ks.setBase(chunkBaseSeed(c))
 
-		// Publish the resumable position. stream.offset counts LINEAR walk steps
-		// (the endomorphism keys are re-derived deterministically), so base +
-		// offset is the next unprocessed key. Stored after nextBatch, it can only
-		// lag the truth, never lead it — a resume re-does at most one batch and
-		// never skips keys.
-		atomic.StoreUint64(&state.offset, stream.offset)
+		for b := 0; b < chunkBatches; b++ {
+			// Mid-chunk shutdown is safe: currentChunk still points at c, so the
+			// whole chunk is re-walked on resume (no key skipped).
+			select {
+			case <-stop:
+				return
+			default:
+			}
 
-		if id == 0 && (batchNum == 0 || batchNum%sampleEvery == 0) {
-			// hashes[0] is variant 0 (the identity key at linear offset start).
-			publishCheckedSample(stream.privateKeyForVariant(start, 0), hashes[0])
-		}
-		batchNum++
+			start := ks.nextBatch(hashes)
 
-		for j := range hashes {
-			if _, exists := targets[hashes[j]]; exists {
-				// Variant-major slot layout: hashes[v*keyBatchSize+p] is the
-				// GLV+negation variant v at linear step p (see hashSextet). Recover
-				// (v, p) and rebuild the exact private key via privateKeyForVariant.
-				v := j / keyBatchSize
-				p := j % keyBatchSize
-				privateKey := stream.privateKeyForVariant(start+uint64(p), v)
-				publicAddress := encodeP2PKH(hashes[j])
-				match := MatchResult{privateKey: privateKey, address: publicAddress}
-				printMatchResult(match) // Print before enqueueing so the key is visible even if file I/O fails.
-				matchChan <- match
+			// One atomic per batch keeps contention low. len(hashes) counts both
+			// the identity and endomorphism keys actually checked.
+			atomic.AddUint64(counter, uint64(len(hashes)))
+
+			if id == 0 && (batchNum == 0 || batchNum%sampleEvery == 0) {
+				// hashes[0] is variant 0 (the identity key at this batch's start).
+				publishCheckedSample(ks.privateKeyForVariant(start, 0), hashes[0])
+			}
+			batchNum++
+
+			for j := range hashes {
+				if _, exists := targets[hashes[j]]; exists {
+					// Variant-major slot layout: hashes[v*keyBatchSize+p] is the
+					// GLV+negation variant v at linear step p (see writeSextet).
+					// Recover (v, p) and rebuild the exact private key.
+					v := j / keyBatchSize
+					p := j % keyBatchSize
+					privateKey := ks.privateKeyForVariant(start+uint64(p), v)
+					publicAddress := encodeP2PKH(hashes[j])
+					match := MatchResult{privateKey: privateKey, address: publicAddress}
+					printMatchResult(match) // Print before enqueueing so the key is visible even if file I/O fails.
+					matchChan <- match
+				}
 			}
 		}
 	}
@@ -1117,7 +1149,7 @@ Thread Safety:
   - Uses atomic.LoadUint64() for thread-safe counter reading
   - No locks required (read-only access to shared counter)
 */
-func statsReporter(counter *uint64, startTime time.Time, states []*workerState, checkpointPath string, baseTotal uint64, activeThreads int) {
+func statsReporter(counter *uint64, startTime time.Time, scan *scanState, progress []workerProgress, checkpointPath string, baseTotal uint64, activeThreads int) {
 	// Create ticker that fires every 10 seconds (one sample line per interval)
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop() // Clean up ticker when function returns
@@ -1152,7 +1184,7 @@ func statsReporter(counter *uint64, startTime time.Time, states []*workerState, 
 
 		// Persist resumable progress on the same 10s cadence as the stats line.
 		if checkpointPath != "" {
-			if err := writeCheckpoint(checkpointPath, states, counter, baseTotal, activeThreads); err != nil {
+			if err := writeCheckpoint(checkpointPath, scan, progress, activeThreads); err != nil {
 				log.Printf("Failed to write checkpoint: %s", err)
 			}
 		}
@@ -1174,7 +1206,7 @@ Program Flow:
  1. Parse command-line flags and positional arguments
  2. Configure runtime (GOMAXPROCS)
  3. Load target address database into memory
- 4. Build per-worker key streams (fresh random, or resumed from a checkpoint)
+ 4. Set up the systematic scan cursor (fresh from key 1, or resumed from a saved frontier) and per-worker key streams
  5. Initialize shared data structures (counter, channels, waitgroups)
  6. Start matchWriter goroutine (file I/O)
  7. Start statsReporter goroutine (monitoring + 10s checkpoint writes)
@@ -1189,7 +1221,7 @@ Positional Arguments:
 Flags (must come before the positional arguments):
 
 	--checkpoint=path  JSON file where progress is saved every 10s (default: checkpoint.json)
-	--resume           Continue from the checkpoint instead of fresh random keys
+	--resume           Continue the scan from the saved frontier instead of starting fresh from key 1
 
 Usage Examples:
 
@@ -1235,7 +1267,7 @@ func main() {
 	// ========================================================================
 
 	checkpointPath := flag.String("checkpoint", "checkpoint.json", "JSON file where progress is saved every 10s")
-	resume := flag.Bool("resume", false, "continue from the checkpoint file instead of fresh random keys")
+	resume := flag.Bool("resume", false, "continue the scan from the checkpoint frontier instead of starting fresh from key 1")
 	flag.Usage = func() {
 		fmt.Println("Usage: ./bitcoin-wallet-bruteforce-offline [--checkpoint=path] [--resume] <threads> <output-file.txt> <btc-address-file.txt>")
 		fmt.Println()
@@ -1296,8 +1328,9 @@ func main() {
 	fmt.Printf("╚════════════════════════════════════════════════════════════╝\n\n")
 	fmt.Printf("CPU Cores: %d | Worker Threads: %d\n", runtime.NumCPU(), numThreads)
 	fmt.Printf("Key Gen: Batched affine EC walk + GLV endomorphism + point negation + Montgomery inversion (%d keys/batch)\n", endoFactor*keyBatchSize)
-	fmt.Printf("SHA256: Hardware Accelerated (SIMD)\n")
+	fmt.Printf("SHA256: %s backend, %d lane(s) [sha256mb multi-buffer]\n", sha256mb.Backend(), sha256mb.Lanes())
 	fmt.Printf("RIPEMD160: %s backend, %d lane(s) [ripemd160-asm multi-buffer]\n", ripemd160mb.Backend(), ripemd160mb.Lanes())
+	fmt.Printf("HASH160: %s\n", hash160mb.Backend())
 	fmt.Printf("Public Key: Compressed (33 bytes)\n")
 	fmt.Printf("Lookup: Hash160 (Base58 only on match)\n")
 	fmt.Printf("Address Type: Legacy P2PKH (starts with '1')\n\n")
@@ -1322,50 +1355,46 @@ func main() {
 	// KEY STREAM SETUP (fresh or resumed)
 	// ========================================================================
 
-	var resumeData *checkpointFile
-	if *resume {
-		resumeData, err = readCheckpoint(*checkpointPath)
-		if err != nil {
-			log.Fatalf("Failed to load checkpoint %q for --resume: %s", *checkpointPath, err)
-		}
-		savedN := len(resumeData.Workers)
-		fmt.Printf("Resuming from %s (%d saved segment(s), %d total keys done)\n",
-			*checkpointPath, savedN, resumeData.TotalKeys)
-		switch {
-		case numThreads > savedN:
-			fmt.Printf("  Threads (%d) > saved segments (%d): resuming all %d, adding %d new random segment(s).\n",
-				numThreads, savedN, savedN, numThreads-savedN)
-		case numThreads < savedN:
-			fmt.Printf("  Threads (%d) < saved segments (%d): resuming the first %d; preserving %d frozen segment(s)\n",
-				numThreads, savedN, numThreads, savedN-numThreads)
-			fmt.Printf("  (they keep their saved position and resume when you run with >= %d threads).\n", savedN)
-		}
-		fmt.Println()
-	}
-
-	streams, states, err := buildStreams(numThreads, resumeData)
-	if err != nil {
-		log.Fatalf("Failed to initialize key streams: %s", err)
-	}
-	frozen := len(states) - numThreads
-	if frozen < 0 {
-		frozen = 0
-	}
-
-	// Cumulative key count carried over from a resumed run (0 for fresh runs).
-	// The live counter always starts at 0 so this run's rates are accurate.
+	// Determine where the systematic scan starts: a saved frontier (--resume) or
+	// private key 1 (fresh). scan.nextChunk is the shared global cursor; baseTotal
+	// is the keys-checked count carried over for display continuity.
+	scan := &scanState{}
 	var baseTotal uint64
-	if resumeData != nil {
+	if *resume {
+		resumeData, rerr := readCheckpoint(*checkpointPath)
+		if rerr != nil {
+			log.Fatalf("Failed to load checkpoint %q for --resume: %s", *checkpointPath, rerr)
+		}
+		startChunk, rerr := resumeStartChunk(resumeData)
+		if rerr != nil {
+			log.Fatalf("Invalid checkpoint %q: %s", *checkpointPath, rerr)
+		}
+		scan.nextChunk = startChunk
 		baseTotal = resumeData.TotalKeys
+		fmt.Printf("Resuming systematic scan from %s\n", *checkpointPath)
+		fmt.Printf("  Frontier key : %s\n", resumeData.NextPrivateKey)
+		fmt.Printf("  Keys checked : %d (every key below the frontier is done)\n", resumeData.TotalKeys)
+		fmt.Printf("  Threads now  : %d — thread-count agnostic, so no key is skipped.\n\n", numThreads)
+	}
+
+	// One keyStream per worker (owns the scratch buffers; rebased to each claimed
+	// chunk inside the worker) plus a per-worker progress slot feeding the
+	// checkpoint frontier. Until a worker claims its first chunk, its published
+	// position equals the start, so the initial checkpoint reflects the start.
+	streams := make([]*keyStream, numThreads)
+	progress := make([]workerProgress, numThreads)
+	for i := 0; i < numThreads; i++ {
+		streams[i] = newKeyStreamFromSeed(startKeySeed)
+		progress[i].currentChunk = scan.nextChunk
 	}
 
 	// Write an initial checkpoint so the file exists and reflects the starting
-	// positions immediately, even before the first 10s tick.
-	if err := writeCheckpoint(*checkpointPath, states, new(uint64), baseTotal, numThreads); err != nil {
+	// frontier immediately, even before the first 10s tick.
+	if err := writeCheckpoint(*checkpointPath, scan, progress, numThreads); err != nil {
 		log.Printf("Failed to write initial checkpoint: %s", err)
 	} else {
-		fmt.Printf("Checkpoint: %s | segments: %d (%d active, %d frozen) | saved every 10s\n\n",
-			*checkpointPath, len(states), numThreads, frozen)
+		fmt.Printf("Checkpoint: %s | systematic scan from key 1 | chunk = %d keys | saved every 10s\n\n",
+			*checkpointPath, uint64(chunkSteps)*endoFactor)
 	}
 
 	// ========================================================================
@@ -1413,14 +1442,14 @@ func main() {
 
 	// Start stats reporter goroutine (metrics + 10s checkpoint writes)
 	startTime := time.Now()
-	go statsReporter(&counter, startTime, states, *checkpointPath, baseTotal, numThreads)
+	go statsReporter(&counter, startTime, scan, progress, *checkpointPath, baseTotal, numThreads)
 
 	// Start worker pool (brute force address generation)
 	fmt.Printf("Starting brute force...\n")
 	fmt.Printf("════════════════════════════════════════════════════════════\n\n")
 	for i := 0; i < numThreads; i++ {
 		workerWg.Add(1)
-		go worker(i, &workerWg, targets, matchChan, &counter, streams[i], states[i], stop)
+		go worker(i, &workerWg, targets, matchChan, &counter, streams[i], scan, &progress[i], stop)
 	}
 
 	// ========================================================================
@@ -1435,8 +1464,8 @@ func main() {
 	close(matchChan)
 	writerWg.Wait()
 
-	// Final checkpoint capturing the exact stopping positions (graceful shutdown).
-	if err := writeCheckpoint(*checkpointPath, states, &counter, baseTotal, numThreads); err != nil {
+	// Final checkpoint capturing the exact frontier (graceful shutdown).
+	if err := writeCheckpoint(*checkpointPath, scan, progress, numThreads); err != nil {
 		log.Printf("Failed to write final checkpoint: %s", err)
 	} else {
 		fmt.Printf("Final checkpoint saved to %s\n", *checkpointPath)

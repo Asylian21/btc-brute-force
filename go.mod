@@ -27,6 +27,11 @@ require (
 	// assembler backends. Replaces dcrd's pure-Go FieldVal in the EC hot loop
 	// (field multiply/square), the dominant CPU cost of the key walk.
 	github.com/Asylian21/secp256k1-field v0.1.0
+
+	// Multi-buffer SHA-256 + fused HASH160 (RIPEMD160(SHA256(pubkey))) for the
+	// inner key-search loop: arm64 hardware-SHA interleave with a crypto/sha256
+	// scalar fallback, feeding the multi-buffer RIPEMD-160 in one batch pass.
+	github.com/Asylian21/sha256mb v0.1.0
 	// Bitcoin SECP256k1 elliptic curve cryptography
 	// Purpose: Generate private/public key pairs using Bitcoin's curve
 	// Features:

@@ -27,7 +27,7 @@ func newKeyStreamSeeded(seed [32]byte) *keyStream {
 		dx:       make([]field.Val, keyBatchSize),
 		pre:      make([]field.Val, keyBatchSize),
 		degenIdx: make([]int, 0, 4),
-		digBuf:   make([]byte, endoFactor*keyBatchSize*32),
+		pubBuf:   make([]byte, endoFactor*keyBatchSize*pubStride),
 	}
 	ks.setBase(seed)
 	return ks
