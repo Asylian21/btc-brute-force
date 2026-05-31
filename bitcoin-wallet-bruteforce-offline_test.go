@@ -33,9 +33,36 @@ func newKeyStreamSeeded(seed [32]byte) *keyStream {
 	return ks
 }
 
+// variantReferenceHash independently derives the expected private key bytes and
+// Hash160 for GLV+negation variant v at linear scalar (baseInt + absOffset) mod
+// order, using math/big + btcec (a fresh derivation, never the hot path). The
+// variant scalars mirror privateKeyForVariant: v0:k v1:n-k v2:λk v3:n-λk v4:λ²k
+// v5:n-λ²k (mod order).
+func variantReferenceHash(baseInt, order, lambda *big.Int, absOffset uint64, v int) ([]byte, [20]byte) {
+	k := new(big.Int).Add(baseInt, new(big.Int).SetUint64(absOffset))
+	switch v {
+	case 2, 3:
+		k.Mul(k, lambda)
+	case 4, 5:
+		k.Mul(k, lambda)
+		k.Mul(k, lambda)
+	}
+	k.Mod(k, order)
+	if v%2 == 1 {
+		k.Sub(order, k) // n - k (point negation); n - 0 reduces back to 0
+		k.Mod(k, order)
+	}
+	wantPriv := k.FillBytes(make([]byte, 32))
+	priv, _ := btcec.PrivKeyFromBytes(wantPriv)
+	var wantHash [20]byte
+	copy(wantHash[:], btcutil.Hash160(priv.PubKey().SerializeCompressed()))
+	return wantPriv, wantHash
+}
+
 // TestKeyStreamMatchesReference proves the incremental EC walk produces exactly
 // the same private keys and Hash160s as an independent math/big + btcec
-// reference that performs a fresh scalar multiplication for each key.
+// reference that performs a fresh scalar multiplication for each key. It checks
+// all 6 GLV+negation variants per sampled linear step in the new slot layout.
 func TestKeyStreamMatchesReference(t *testing.T) {
 	order, _ := new(big.Int).SetString(secp256k1Order, 16)
 
@@ -51,8 +78,8 @@ func TestKeyStreamMatchesReference(t *testing.T) {
 
 	ks := newKeyStreamSeeded(seed)
 
-	// out[0:keyBatchSize] are identity keys; out[keyBatchSize:] are their
-	// endomorphism images. m == keyBatchSize here.
+	// Variant-major layout: hashes[v*keyBatchSize+p] is variant v at step p.
+	// m == keyBatchSize here.
 	hashes := make([][20]byte, endoFactor*keyBatchSize)
 	start := ks.nextBatch(hashes)
 	if start != 0 {
@@ -62,55 +89,76 @@ func TestKeyStreamMatchesReference(t *testing.T) {
 	baseInt := new(big.Int).SetBytes(seed[:])
 	baseInt.Mod(baseInt, order)
 
-	check := func(j int) {
+	check := func(p int) {
 		t.Helper()
-		// Independent identity reference private key: (base + offset) mod N.
-		k := new(big.Int).Add(baseInt, big.NewInt(int64(uint64(start)+uint64(j))))
-		k.Mod(k, order)
-		wantPriv := k.FillBytes(make([]byte, 32))
+		for v := 0; v < endoFactor; v++ {
+			wantPriv, wantHash := variantReferenceHash(baseInt, order, lambda, start+uint64(p), v)
 
-		priv, _ := btcec.PrivKeyFromBytes(wantPriv)
-		pub := priv.PubKey().SerializeCompressed()
-		var wantHash [20]byte
-		copy(wantHash[:], btcutil.Hash160(pub))
+			if hashes[v*keyBatchSize+p] != wantHash {
+				t.Errorf("variant %d step %d: walk hash160 %x != reference %x", v, p, hashes[v*keyBatchSize+p], wantHash)
+			}
 
-		if hashes[j] != wantHash {
-			t.Errorf("identity index %d: walk hash160 %x != reference %x", j, hashes[j], wantHash)
-		}
-
-		// privateKeyAt must reconstruct the same private key bytes.
-		gotPriv := ks.privateKeyAt(start + uint64(j)).Serialize()
-		if !bytes.Equal(gotPriv, wantPriv) {
-			t.Errorf("identity index %d: privateKeyAt %x != reference %x", j, gotPriv, wantPriv)
-		}
-
-		// Independent endomorphism reference private key: lambda*(base+offset) mod N.
-		ek := new(big.Int).Mul(k, lambda)
-		ek.Mod(ek, order)
-		ewantPriv := ek.FillBytes(make([]byte, 32))
-
-		epriv, _ := btcec.PrivKeyFromBytes(ewantPriv)
-		var ewantHash [20]byte
-		copy(ewantHash[:], btcutil.Hash160(epriv.PubKey().SerializeCompressed()))
-
-		if hashes[keyBatchSize+j] != ewantHash {
-			t.Errorf("endomorphism index %d: walk hash160 %x != reference %x", j, hashes[keyBatchSize+j], ewantHash)
-		}
-
-		// privateKeyAtEndo must reconstruct lambda*(base+offset) mod N.
-		gotEndo := ks.privateKeyAtEndo(start + uint64(j)).Serialize()
-		if !bytes.Equal(gotEndo, ewantPriv) {
-			t.Errorf("endomorphism index %d: privateKeyAtEndo %x != reference %x", j, gotEndo, ewantPriv)
+			// privateKeyForVariant must reconstruct the same private key bytes.
+			gotPriv := ks.privateKeyForVariant(start+uint64(p), v).Serialize()
+			if !bytes.Equal(gotPriv, wantPriv) {
+				t.Errorf("variant %d step %d: privateKeyForVariant %x != reference %x", v, p, gotPriv, wantPriv)
+			}
 		}
 	}
 
-	for _, j := range []int{0, 1, 2, 3, 7, 100, 511, 512, 1000, keyBatchSize - 1} {
-		check(j)
+	for _, p := range []int{0, 1, 2, 3, 7, 100, 511, 512, 1000, keyBatchSize - 1} {
+		check(p)
+	}
+}
+
+// TestKeyStreamAllVariants is the dedicated correctness gate for the 6-variant
+// slot layout. For an independent seed it verifies every GLV+negation variant
+// (both the Hash160 written to out[v*keyBatchSize+p] and the private key from
+// privateKeyForVariant) against a fresh math/big + btcec reference, across an
+// exhaustive small step prefix plus a few scattered larger steps.
+func TestKeyStreamAllVariants(t *testing.T) {
+	order, _ := new(big.Int).SetString(secp256k1Order, 16)
+	lambda, ok := new(big.Int).SetString(secp256k1Lambda, 16)
+	if !ok {
+		t.Fatal("failed to parse lambda")
+	}
+
+	var seed [32]byte
+	seed[0] = 0xc3
+	seed[7] = 0x11
+	seed[31] = 0xbd
+	ks := newKeyStreamSeeded(seed)
+
+	hashes := make([][20]byte, endoFactor*keyBatchSize)
+	start := ks.nextBatch(hashes)
+
+	baseInt := new(big.Int).SetBytes(seed[:])
+	baseInt.Mod(baseInt, order)
+
+	// Exhaustive small prefix plus a few scattered larger steps. All entries MUST
+	// be < keyBatchSize (the per-batch step count), expressed relative to it so
+	// the test stays correct under any keyBatchSize.
+	steps := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+		keyBatchSize / 3, keyBatchSize / 2, keyBatchSize - 2, keyBatchSize - 1}
+	for _, p := range steps {
+		for v := 0; v < endoFactor; v++ {
+			wantPriv, wantHash := variantReferenceHash(baseInt, order, lambda, start+uint64(p), v)
+
+			if hashes[v*keyBatchSize+p] != wantHash {
+				t.Errorf("variant %d step %d: hash160 %x != reference %x", v, p, hashes[v*keyBatchSize+p], wantHash)
+			}
+
+			gotPriv := ks.privateKeyForVariant(start+uint64(p), v).Serialize()
+			if !bytes.Equal(gotPriv, wantPriv) {
+				t.Errorf("variant %d step %d: privateKeyForVariant %x != reference %x", v, p, gotPriv, wantPriv)
+			}
+		}
 	}
 }
 
 // TestKeyStreamContinuity verifies the offset accounting across consecutive
-// batches stays consistent (second batch continues exactly where the first ended).
+// batches stays consistent (second batch continues exactly where the first
+// ended), checking all 6 GLV+negation variants at a few steps in the second batch.
 func TestKeyStreamContinuity(t *testing.T) {
 	order, _ := new(big.Int).SetString(secp256k1Order, 16)
 	lambda, _ := new(big.Int).SetString(secp256k1Lambda, 16)
@@ -128,26 +176,12 @@ func TestKeyStreamContinuity(t *testing.T) {
 		t.Fatalf("expected second batch to start at %d, got %d", keyBatchSize, start)
 	}
 
-	// Verify a couple of identity and endomorphism keys in the second batch.
-	for _, j := range []int{0, 5, keyBatchSize - 1} {
-		k := new(big.Int).Add(baseInt, big.NewInt(int64(start+uint64(j))))
-		k.Mod(k, order)
-		wantPriv := k.FillBytes(make([]byte, 32))
-		priv, _ := btcec.PrivKeyFromBytes(wantPriv)
-		var wantHash [20]byte
-		copy(wantHash[:], btcutil.Hash160(priv.PubKey().SerializeCompressed()))
-		if hashes[j] != wantHash {
-			t.Errorf("second batch identity index %d: %x != %x", j, hashes[j], wantHash)
-		}
-
-		ek := new(big.Int).Mul(k, lambda)
-		ek.Mod(ek, order)
-		ewantPriv := ek.FillBytes(make([]byte, 32))
-		epriv, _ := btcec.PrivKeyFromBytes(ewantPriv)
-		var ewantHash [20]byte
-		copy(ewantHash[:], btcutil.Hash160(epriv.PubKey().SerializeCompressed()))
-		if hashes[keyBatchSize+j] != ewantHash {
-			t.Errorf("second batch endomorphism index %d: %x != %x", j, hashes[keyBatchSize+j], ewantHash)
+	for _, p := range []int{0, 5, keyBatchSize - 1} {
+		for v := 0; v < endoFactor; v++ {
+			_, wantHash := variantReferenceHash(baseInt, order, lambda, start+uint64(p), v)
+			if hashes[v*keyBatchSize+p] != wantHash {
+				t.Errorf("second batch variant %d step %d: %x != %x", v, p, hashes[v*keyBatchSize+p], wantHash)
+			}
 		}
 	}
 }
