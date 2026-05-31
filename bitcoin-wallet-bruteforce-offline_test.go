@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/rand"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -11,7 +10,6 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcutil"
 	secp "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"golang.org/x/crypto/ripemd160"
 )
 
 // secp256k1 group order N.
@@ -23,6 +21,8 @@ func newKeyStreamSeeded(seed [32]byte) *keyStream {
 		dx:       make([]secp.FieldVal, keyBatchSize),
 		pre:      make([]secp.FieldVal, keyBatchSize),
 		degenIdx: make([]int, 0, 4),
+		digBuf:   make([]byte, keyBatchSize*32),
+		h160Buf:  make([]byte, keyBatchSize*20), // 20 == ripemd160mb.Size (Hash160 length)
 	}
 	ks.setBase(seed)
 	return ks
@@ -236,87 +236,5 @@ func BenchmarkGenerateKeyAndHash160(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-	}
-}
-
-// ripemd160Reference is the streaming x/crypto implementation, used as the
-// correctness oracle for the specialized single-block hasher.
-func ripemd160Reference(msg []byte) [20]byte {
-	h := ripemd160.New()
-	h.Write(msg)
-	var out [20]byte
-	h.Sum(out[:0])
-	return out
-}
-
-// TestRIPEMD160Hash32 proves the specialized single-block RIPEMD160 used on the
-// hot path is byte-identical to the reference streaming implementation for the
-// only input size it is ever called with (a 32-byte SHA-256 digest). Any error
-// in the transcribed tables, round functions or padding would surface here.
-func TestRIPEMD160Hash32(t *testing.T) {
-	check := func(name string, msg [32]byte) {
-		t.Helper()
-		var got [20]byte
-		ripemd160Hash32(&msg, got[:])
-		if want := ripemd160Reference(msg[:]); got != want {
-			t.Fatalf("%s: ripemd160Hash32 = %x, want %x", name, got, want)
-		}
-	}
-
-	// Deterministic edge cases.
-	var zero [32]byte
-	check("all-zero", zero)
-
-	var ones [32]byte
-	for i := range ones {
-		ones[i] = 0xff
-	}
-	check("all-ones", ones)
-
-	var seq [32]byte
-	for i := range seq {
-		seq[i] = byte(i)
-	}
-	check("sequential", seq)
-
-	// Randomized fuzzing against the reference.
-	for i := 0; i < 100000; i++ {
-		var msg [32]byte
-		if _, err := rand.Read(msg[:]); err != nil {
-			t.Fatal(err)
-		}
-		check("random", msg)
-	}
-}
-
-// BenchmarkRIPEMD160Hash32 measures the specialized single-block hasher.
-func BenchmarkRIPEMD160Hash32(b *testing.B) {
-	var msg [32]byte
-	if _, err := rand.Read(msg[:]); err != nil {
-		b.Fatal(err)
-	}
-	var out [20]byte
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ripemd160Hash32(&msg, out[:])
-	}
-}
-
-// BenchmarkRIPEMD160Streaming measures the previous streaming hasher (interface
-// dispatch + internal buffer copy + padding) for comparison.
-func BenchmarkRIPEMD160Streaming(b *testing.B) {
-	var msg [32]byte
-	if _, err := rand.Read(msg[:]); err != nil {
-		b.Fatal(err)
-	}
-	h := ripemd160.New()
-	var out [20]byte
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		h.Reset()
-		h.Write(msg[:])
-		h.Sum(out[:0])
 	}
 }

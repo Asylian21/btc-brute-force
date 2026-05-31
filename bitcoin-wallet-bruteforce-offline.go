@@ -25,7 +25,9 @@ Performance Optimizations:
 	- Batched (Montgomery) field inversion: a single inversion per 1024 keys
 	  amortizes the only division in the affine addition formula
 	- SIMD-accelerated SHA256 hashing (minio/sha256-simd)
-	- Specialized single-block RIPEMD160 (fixed 32-byte input; no streaming/interface overhead)
+	- Multi-buffer SIMD RIPEMD160 over the whole batch (github.com/Asylian21/ripemd160-asm;
+	  4-lane NEON on arm64, scalar fallback elsewhere) — the RIPEMD160 half of Hash160 is
+	  the second-largest CPU cost after the EC field math, so it is vectorized across lanes
 	- Alloc-free hot path: reused per-worker scratch buffers
 	- Compressed public keys (33 bytes vs 65 bytes)
 	- Hash160-only lookups (Base58 deferred to the rare match path)
@@ -52,7 +54,6 @@ import (
 	"flag"            // CLI flag parsing (--checkpoint, --resume)
 	"fmt"             // Formatted I/O
 	"log"             // Logging errors
-	"math/bits"       // Hardware rotate (RotateLeft32) for the RIPEMD160 core
 	"os"              // OS operations (file handling, arguments)
 	"os/signal"       // Graceful shutdown: final checkpoint on SIGINT/SIGTERM
 	"runtime"         // Runtime information (CPU cores)
@@ -68,6 +69,7 @@ import (
 	"github.com/btcsuite/btcutil/base58"             // Base58 encoding for addresses
 	secp "github.com/decred/dcrd/dcrec/secp256k1/v4" // Low-level EC point arithmetic (incremental walk)
 	sha256simd "github.com/minio/sha256-simd"        // SIMD-accelerated SHA256 (2-3x faster)
+	ripemd160mb "github.com/Asylian21/ripemd160-asm" // Multi-buffer SIMD RIPEMD160 (NEON 4-lane on arm64)
 )
 
 // ============================================================================
@@ -192,163 +194,6 @@ func encodeP2PKH(hash160 [20]byte) string {
 }
 
 // ============================================================================
-// HOT PATH PRIMITIVE: RIPEMD160 of a single 32-byte block
-// ============================================================================
-//
-// Hash160 = RIPEMD160(SHA256(pubkey)); the RIPEMD160 input is therefore ALWAYS
-// exactly the 32-byte SHA256 digest. The generic streaming hasher
-// (golang.org/x/crypto/ripemd160, a pure-Go, now-deprecated package) pays on
-// EVERY call for interface dispatch, an internal 64-byte buffer copy, message-
-// length bookkeeping and padding. With a fixed 32-byte input all of that is
-// constant: the padded 512-bit block is the 32 message bytes, a 0x80 byte, zero
-// padding, and the bit length 256 — so the whole hash collapses to a single
-// compression-function evaluation started from the standard initial state.
-//
-// ripemd160Hash32 reproduces the exact algorithm of x/crypto's _Block (the
-// digest is bit-identical: verified directly by TestRIPEMD160Hash32 against the
-// reference implementation, and end-to-end by TestKeyStreamMatchesReference
-// against btcutil.Hash160) while stripping all per-call overhead from the hot
-// loop, which runs this once per generated key.
-
-// RIPEMD160 initial state h0..h4.
-const (
-	ripemd160H0 = 0x67452301
-	ripemd160H1 = 0xefcdab89
-	ripemd160H2 = 0x98badcfe
-	ripemd160H3 = 0x10325476
-	ripemd160H4 = 0xc3d2e1f0
-)
-
-// Per-step message-word selection (n*) and left-rotate amounts (r*) for the two
-// parallel RIPEMD160 lines, exactly as specified by the algorithm.
-var (
-	ripemd160nLeft = [80]uint8{
-		0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-		7, 4, 13, 1, 10, 6, 15, 3, 12, 0, 9, 5, 2, 14, 11, 8,
-		3, 10, 14, 4, 9, 15, 8, 1, 2, 7, 0, 6, 13, 11, 5, 12,
-		1, 9, 11, 10, 0, 8, 12, 4, 13, 3, 7, 15, 14, 5, 6, 2,
-		4, 0, 5, 9, 7, 12, 2, 10, 14, 1, 3, 8, 11, 6, 15, 13,
-	}
-	ripemd160rLeft = [80]uint8{
-		11, 14, 15, 12, 5, 8, 7, 9, 11, 13, 14, 15, 6, 7, 9, 8,
-		7, 6, 8, 13, 11, 9, 7, 15, 7, 12, 15, 9, 11, 7, 13, 12,
-		11, 13, 6, 7, 14, 9, 13, 15, 14, 8, 13, 6, 5, 12, 7, 5,
-		11, 12, 14, 15, 14, 15, 9, 8, 9, 14, 5, 6, 8, 6, 5, 12,
-		9, 15, 5, 11, 6, 8, 13, 12, 5, 12, 13, 14, 11, 8, 5, 6,
-	}
-	ripemd160nRight = [80]uint8{
-		5, 14, 7, 0, 9, 2, 11, 4, 13, 6, 15, 8, 1, 10, 3, 12,
-		6, 11, 3, 7, 0, 13, 5, 10, 14, 15, 8, 12, 4, 9, 1, 2,
-		15, 5, 1, 3, 7, 14, 6, 9, 11, 8, 12, 2, 10, 0, 4, 13,
-		8, 6, 4, 1, 3, 11, 15, 0, 5, 12, 2, 13, 9, 7, 10, 14,
-		12, 15, 10, 4, 1, 5, 8, 7, 6, 2, 13, 14, 0, 3, 9, 11,
-	}
-	ripemd160rRight = [80]uint8{
-		8, 9, 9, 11, 13, 15, 15, 5, 7, 7, 8, 11, 14, 14, 12, 6,
-		9, 13, 15, 7, 12, 8, 9, 11, 7, 7, 12, 7, 6, 15, 13, 11,
-		9, 7, 15, 11, 8, 6, 6, 14, 12, 13, 5, 14, 13, 13, 7, 5,
-		15, 5, 8, 11, 14, 14, 6, 14, 6, 9, 12, 9, 12, 5, 15, 8,
-		8, 5, 12, 9, 12, 5, 14, 6, 8, 13, 6, 5, 15, 13, 11, 11,
-	}
-)
-
-// ripemd160Hash32 writes RIPEMD160(msg) into out[:20] for a fixed 32-byte msg
-// (a SHA-256 digest). out must have length >= 20.
-func ripemd160Hash32(msg *[32]byte, out []byte) {
-	// 16-word schedule of the single padded block: 8 data words, then the 0x80
-	// padding byte (word 8 == 0x00000080), zeros, and the 64-bit message length
-	// 256 bits in the low length word (word 14). Words 9..13 and 15 stay zero.
-	var x [16]uint32
-	x[0] = binary.LittleEndian.Uint32(msg[0:4])
-	x[1] = binary.LittleEndian.Uint32(msg[4:8])
-	x[2] = binary.LittleEndian.Uint32(msg[8:12])
-	x[3] = binary.LittleEndian.Uint32(msg[12:16])
-	x[4] = binary.LittleEndian.Uint32(msg[16:20])
-	x[5] = binary.LittleEndian.Uint32(msg[20:24])
-	x[6] = binary.LittleEndian.Uint32(msg[24:28])
-	x[7] = binary.LittleEndian.Uint32(msg[28:32])
-	x[8] = 0x80
-	x[14] = 256
-
-	a, b, c, d, e := uint32(ripemd160H0), uint32(ripemd160H1), uint32(ripemd160H2), uint32(ripemd160H3), uint32(ripemd160H4)
-	aa, bb, cc, dd, ee := a, b, c, d, e
-	var alpha, beta uint32
-
-	// The &15 masks let the compiler drop the bounds checks on x (the table
-	// values are always 0..15); rotates use math/bits for a single hardware
-	// ROL, matching x/crypto's well-tuned core.
-	i := 0
-	for i < 16 { // round 1: f1 (left), f5 (right)
-		alpha = a + (b ^ c ^ d) + x[ripemd160nLeft[i]&15]
-		alpha = bits.RotateLeft32(alpha, int(ripemd160rLeft[i])) + e
-		beta = bits.RotateLeft32(c, 10)
-		a, b, c, d, e = e, alpha, b, beta, d
-
-		alpha = aa + (bb ^ (cc | ^dd)) + x[ripemd160nRight[i]&15] + 0x50a28be6
-		alpha = bits.RotateLeft32(alpha, int(ripemd160rRight[i])) + ee
-		beta = bits.RotateLeft32(cc, 10)
-		aa, bb, cc, dd, ee = ee, alpha, bb, beta, dd
-		i++
-	}
-	for i < 32 { // round 2: f2 (left), f4 (right)
-		alpha = a + (b&c | ^b&d) + x[ripemd160nLeft[i]&15] + 0x5a827999
-		alpha = bits.RotateLeft32(alpha, int(ripemd160rLeft[i])) + e
-		beta = bits.RotateLeft32(c, 10)
-		a, b, c, d, e = e, alpha, b, beta, d
-
-		alpha = aa + (bb&dd | cc&^dd) + x[ripemd160nRight[i]&15] + 0x5c4dd124
-		alpha = bits.RotateLeft32(alpha, int(ripemd160rRight[i])) + ee
-		beta = bits.RotateLeft32(cc, 10)
-		aa, bb, cc, dd, ee = ee, alpha, bb, beta, dd
-		i++
-	}
-	for i < 48 { // round 3: f3 (left), f3 (right)
-		alpha = a + (b | ^c ^ d) + x[ripemd160nLeft[i]&15] + 0x6ed9eba1
-		alpha = bits.RotateLeft32(alpha, int(ripemd160rLeft[i])) + e
-		beta = bits.RotateLeft32(c, 10)
-		a, b, c, d, e = e, alpha, b, beta, d
-
-		alpha = aa + (bb | ^cc ^ dd) + x[ripemd160nRight[i]&15] + 0x6d703ef3
-		alpha = bits.RotateLeft32(alpha, int(ripemd160rRight[i])) + ee
-		beta = bits.RotateLeft32(cc, 10)
-		aa, bb, cc, dd, ee = ee, alpha, bb, beta, dd
-		i++
-	}
-	for i < 64 { // round 4: f4 (left), f2 (right)
-		alpha = a + (b&d | c&^d) + x[ripemd160nLeft[i]&15] + 0x8f1bbcdc
-		alpha = bits.RotateLeft32(alpha, int(ripemd160rLeft[i])) + e
-		beta = bits.RotateLeft32(c, 10)
-		a, b, c, d, e = e, alpha, b, beta, d
-
-		alpha = aa + (bb&cc | ^bb&dd) + x[ripemd160nRight[i]&15] + 0x7a6d76e9
-		alpha = bits.RotateLeft32(alpha, int(ripemd160rRight[i])) + ee
-		beta = bits.RotateLeft32(cc, 10)
-		aa, bb, cc, dd, ee = ee, alpha, bb, beta, dd
-		i++
-	}
-	for i < 80 { // round 5: f5 (left), f1 (right)
-		alpha = a + (b ^ (c | ^d)) + x[ripemd160nLeft[i]&15] + 0xa953fd4e
-		alpha = bits.RotateLeft32(alpha, int(ripemd160rLeft[i])) + e
-		beta = bits.RotateLeft32(c, 10)
-		a, b, c, d, e = e, alpha, b, beta, d
-
-		alpha = aa + (bb ^ cc ^ dd) + x[ripemd160nRight[i]&15]
-		alpha = bits.RotateLeft32(alpha, int(ripemd160rRight[i])) + ee
-		beta = bits.RotateLeft32(cc, 10)
-		aa, bb, cc, dd, ee = ee, alpha, bb, beta, dd
-		i++
-	}
-
-	// Single-block combine from the standard initial state (h0..h4 constants).
-	dd += c + uint32(ripemd160H1)
-	binary.LittleEndian.PutUint32(out[0:4], dd)
-	binary.LittleEndian.PutUint32(out[4:8], uint32(ripemd160H2)+d+ee)
-	binary.LittleEndian.PutUint32(out[8:12], uint32(ripemd160H3)+e+aa)
-	binary.LittleEndian.PutUint32(out[12:16], uint32(ripemd160H4)+a+bb)
-	binary.LittleEndian.PutUint32(out[16:20], uint32(ripemd160H0)+b+cc)
-}
-
-// ============================================================================
 // HOT PATH: Batched Affine EC Walk ("giant step" group addition)
 // ============================================================================
 //
@@ -419,7 +264,8 @@ type keyStream struct {
 	pre      []secp.FieldVal // scratch: Montgomery prefix products
 	degenIdx []int           // batch indices where P == ±iG (zero denominator)
 	pub      [33]byte        // stable compressed-pubkey scratch (avoids per-key alloc)
-	shaBuf   [32]byte        // stable SHA256 scratch (digest fed into ripemd160Hash32)
+	digBuf   []byte          // batch scratch: SHA-256 digests (n*32) fed to multi-buffer RIPEMD-160
+	h160Buf  []byte          // batch scratch: RIPEMD-160 output (n*20) before scatter into out
 }
 
 // setBase derives the affine starting point P = base*G from a 32-byte seed,
@@ -450,6 +296,8 @@ func newKeyStreamFromSeed(seed [32]byte) *keyStream {
 		dx:       make([]secp.FieldVal, keyBatchSize),
 		pre:      make([]secp.FieldVal, keyBatchSize),
 		degenIdx: make([]int, 0, 4),
+		digBuf:   make([]byte, keyBatchSize*32),
+		h160Buf:  make([]byte, keyBatchSize*ripemd160mb.Size),
 	}
 	ks.setBase(seed)
 	return ks
@@ -470,14 +318,16 @@ func (ks *keyStream) affineAt(absOffset uint64, x, y *secp.FieldVal) {
 	y.Set(&p.Y)
 }
 
-// hashPoint writes Hash160(compressed pubkey) of the affine point (x, y) into
-// out. Both x and y MUST be normalized. It allocates nothing: pub and shaBuf
-// live on the heap-resident stream.
-func (ks *keyStream) hashPoint(x, y *secp.FieldVal, out []byte) {
+// shaPoint writes SHA256(compressed pubkey) of the affine point (x, y) into the
+// 32-byte digest slot dig. Both x and y MUST be normalized. It allocates
+// nothing: pub lives on the heap-resident stream. The RIPEMD160 half of Hash160
+// is applied later in one multi-buffer pass over the whole batch (see nextBatch),
+// which is where the SIMD speedup comes from.
+func (ks *keyStream) shaPoint(x, y *secp.FieldVal, dig []byte) {
 	ks.pub[0] = 0x02 | byte(y.IsOddBit())
 	x.PutBytesUnchecked(ks.pub[1:33])
-	ks.shaBuf = sha256simd.Sum256(ks.pub[:])
-	ripemd160Hash32(&ks.shaBuf, out)
+	d := sha256simd.Sum256(ks.pub[:])
+	copy(dig, d[:])
 }
 
 /*
@@ -499,8 +349,9 @@ func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
 	n := len(out)
 	start := ks.offset
 
-	// out[0] is the current base point P (already affine and normalized).
-	ks.hashPoint(&ks.px, &ks.py, out[0][:])
+	// Phase 1: SHA-256 every point's compressed pubkey into the batch digest
+	// buffer. out[0] is the current base point P (already affine, normalized).
+	ks.shaPoint(&ks.px, &ks.py, ks.digBuf[0:32])
 
 	// -x_P and -y_P are reused for every key in this batch.
 	var negPx, negPy secp.FieldVal
@@ -538,7 +389,7 @@ func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
 	ks.dx[0].Set(&inv) // 1/dx[0]
 
 	// Compute each Q = P + (j+1)*G. The last one (j == n-1) becomes the base
-	// point for the next batch; the rest are hashed into out[1..n-1].
+	// point for the next batch; the rest are SHA'd into digBuf[1..n-1].
 	var lam, lamSq, x3, negX3, t, num, y3 secp.FieldVal
 	for j := 0; j < n; j++ {
 		num.Add2(&mulGy[j], &negPy)                  // y_Q - y_P (mag 3)
@@ -553,7 +404,7 @@ func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
 		y3.Normalize()
 
 		if j < n-1 {
-			ks.hashPoint(&x3, &y3, out[j+1][:])
+			ks.shaPoint(&x3, &y3, ks.digBuf[(j+1)*32:(j+2)*32])
 		} else {
 			ks.px.Set(&x3) // advance base point to P + n*G
 			ks.py.Set(&y3)
@@ -566,11 +417,20 @@ func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
 		var x, y secp.FieldVal
 		ks.affineAt(start+uint64(j)+1, &x, &y)
 		if j < n-1 {
-			ks.hashPoint(&x, &y, out[j+1][:])
+			ks.shaPoint(&x, &y, ks.digBuf[(j+1)*32:(j+2)*32])
 		} else {
 			ks.px.Set(&x)
 			ks.py.Set(&y)
 		}
+	}
+
+	// Phase 2: a single multi-buffer RIPEMD-160 pass over all n SHA-256 digests
+	// (the expensive hash, vectorized across SIMD lanes by ripemd160mb), then
+	// scatter the 20-byte Hash160s into the caller's slice. With the library's
+	// scalar fallback this is bit-identical to a per-key RIPEMD-160.
+	ripemd160mb.Hash32(ks.h160Buf[:n*ripemd160mb.Size], ks.digBuf[:n*32], n)
+	for k := 0; k < n; k++ {
+		copy(out[k][:], ks.h160Buf[k*ripemd160mb.Size:(k+1)*ripemd160mb.Size])
 	}
 
 	ks.offset += uint64(n)
@@ -588,6 +448,31 @@ func (ks *keyStream) privateKeyAt(absOffset uint64) *btcec.PrivateKey {
 	keyBytes := res.Bytes()
 	priv, _ := btcec.PrivKeyFromBytes(keyBytes[:])
 	return priv
+}
+
+// verifyHashPipeline runs a handful of keys through the full production hot path
+// (EC walk -> SHA-256 -> multi-buffer RIPEMD-160) and checks every result
+// against the independent btcutil.Hash160 reference. The SIMD RIPEMD-160 backend
+// is architecture-specific, so this guards against a kernel that is wrong on this
+// CPU: instead of silently missing every real match for a whole run, fail fast.
+func verifyHashPipeline() {
+	var seed [32]byte
+	seed[0] = 0x2a
+	seed[31] = 0x9f
+	ks := newKeyStreamFromSeed(seed)
+
+	const m = 64 // larger than the lane width: exercises the SIMD body and tail
+	out := make([][20]byte, m)
+	start := ks.nextBatch(out)
+	for j := 0; j < m; j++ {
+		priv := ks.privateKeyAt(start + uint64(j))
+		var want [20]byte
+		copy(want[:], btcutil.Hash160(priv.PubKey().SerializeCompressed()))
+		if out[j] != want {
+			log.Fatalf("Hash160 pipeline self-test FAILED at index %d (RIPEMD160 backend %q): got %x, want %x — refusing to run",
+				j, ripemd160mb.Backend(), out[j], want)
+		}
+	}
 }
 
 // ============================================================================
@@ -1218,9 +1103,15 @@ func main() {
 	fmt.Printf("CPU Cores: %d | Worker Threads: %d\n", runtime.NumCPU(), numThreads)
 	fmt.Printf("Key Gen: Batched affine EC walk + Montgomery inversion (%d/batch)\n", keyBatchSize)
 	fmt.Printf("SHA256: Hardware Accelerated (SIMD)\n")
+	fmt.Printf("RIPEMD160: %s backend, %d lane(s) [ripemd160-asm multi-buffer]\n", ripemd160mb.Backend(), ripemd160mb.Lanes())
 	fmt.Printf("Public Key: Compressed (33 bytes)\n")
 	fmt.Printf("Lookup: Hash160 (Base58 only on match)\n")
 	fmt.Printf("Address Type: Legacy P2PKH (starts with '1')\n\n")
+
+	// Fail fast if the Hash160 pipeline (including the architecture-specific SIMD
+	// RIPEMD-160 backend) is not bit-correct on this CPU: a silent hash bug would
+	// make every real match be missed for the entire run.
+	verifyHashPipeline()
 
 	// ========================================================================
 	// ADDRESS DATABASE LOADING

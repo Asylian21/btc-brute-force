@@ -57,6 +57,7 @@ require (
 // ============================================================================
 
 require (
+	github.com/Asylian21/ripemd160-asm v0.1.1
 	// Bitcoin daemon core library
 	// Used by btcutil for constants and shared types
 	// Not directly used in our code
@@ -75,12 +76,12 @@ require (
 	// Additional cryptographic primitives
 	// Purpose: Used internally by btcsuite libraries
 	// Not directly imported in our code, but required by dependencies
-	golang.org/x/crypto v0.17.0
+	golang.org/x/crypto v0.24.0 // indirect
 
 	// Operating system interface
 	// Low-level system calls used by cryptographic libraries
 	// Platform-specific implementations
-	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/sys v0.21.0 // indirect
 )
 
 // ============================================================================
