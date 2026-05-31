@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "updated_at": "2026-05-31T16:24:19Z",
+  "threads": 1,
+  "segments": 1,
+  "key_batch_size": 1024,
+  "total_keys": 0,
+  "workers": [
+    {
+      "id": 0,
+      "next_private_key": "0000000000000000000000000000000000000000000000000000000000000001",
+      "keys_processed": 0
+    }
+  ]
+}

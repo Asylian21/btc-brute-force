@@ -109,8 +109,8 @@ This version is a major performance and usability pass. The old loop was concept
 The new loop is built like a proper research hot path:
 
 1. **Batched secp256k1 walk**: each worker does one scalar multiplication for its starting point, then advances through consecutive keys with affine point addition (`P + iG`) using a precomputed table of generator multiples.
-2. **GLV endomorphism**: every affine point `(x, y)` also yields `(beta*x, y) = lambda*P` — a second valid key sharing the same `y` — for the cost of one field multiply, doubling the keys checked per field inversion. Its private scalar is `lambda*k mod n`, reconstructed only on the rare match path. The pairing of the `beta`/`lambda` constants is verified end-to-end at startup, so a wrong constant fails fast instead of silently missing matches.
-3. **Montgomery batch inversion**: the expensive field inversion in affine addition is amortized across a 2,048-step batch (4,096 keys with the endomorphism).
+2. **GLV endomorphism + point negation**: every affine point `(x, y)` yields SIX valid keys — the three endomorphism x-values `(x, beta*x, beta^2*x)` (scalars `k`, `lambda*k`, `lambda^2*k`), each in both point-negation parities (`-P = (x, -y)`, scalar `n-k`) — for just 2 field multiplies, since negation is a free `02/03` prefix flip (`y` is never serialized). That checks 6 keys per field inversion instead of 2; the scalars are reconstructed only on the rare match path. The `beta`/`lambda` constants and all six variants are verified end-to-end at startup, so a wrong constant or slot mismatch fails fast instead of silently missing matches.
+3. **Montgomery batch inversion**: the expensive field inversion in affine addition is amortized across a 1,024-step batch (6,144 keys after the 6x endomorphism + negation expansion).
 4. **Fast secp256k1 Fp field backend**: the per-key base-field arithmetic — the dominant CPU cost of the walk — runs on [`secp256k1-field`](https://github.com/Asylian21/secp256k1-field), a 5x52-limb implementation with arm64/amd64 assembler kernels, replacing dcrd's pure-Go 10x26 `FieldVal`. It is bit-identical to dcrd (differential-fuzzed) and roughly **doubles** the single-thread hot-loop throughput (see [BENCHMARKS.md](BENCHMARKS.md)).
 5. **Hash160 target set**: target addresses are decoded once at startup and stored as raw 20-byte Hash160 keys; Base58 encoding runs only on the rare match path.
 6. **Specialized RIPEMD160 with zero-copy output**: Hash160 always feeds RIPEMD160 with a 32-byte SHA256 digest, so the hot path uses a multi-buffer RIPEMD160 implementation verified against `golang.org/x/crypto/ripemd160` — and it writes its 20-byte digests straight into the result slice, with no intermediate buffer or per-key scatter copy.
@@ -137,7 +137,7 @@ the stats line (plus once at startup and once on a clean `Ctrl+C`):
   "updated_at": "2026-05-29T13:58:00Z",
   "threads": 8,
   "segments": 8,
-  "key_batch_size": 2048,
+  "key_batch_size": 1024,
   "total_keys": 1234567890,
   "workers": [
     { "id": 0, "next_private_key": "f0cf…82f9", "keys_processed": 1024000 },
@@ -182,21 +182,21 @@ Notes:
 
 Performance depends on CPU architecture, Go version, thermal state, worker count, and target-set size. The short version: the optimized code is fast enough to be interesting, and the Bitcoin address space is still astronomically larger.
 
-**20M keys/sec is impressive. 2^160 remains undefeated.**
+**~39M keys/sec is impressive. 2^160 remains undefeated.**
 
 See [BENCHMARKS.md](BENCHMARKS.md) for raw output and methodology.
 
 **Current local benchmark (Apple Silicon / darwin arm64 / Go 1.22.5):**
 
-- **Real MacBook Air M3 runtime:** sustained program throughput around **20 million keys/sec** with the optimized multi-worker hot path (each linear walk step now yields two checked keys via the endomorphism).
-- `BenchmarkKeyStreamPerKey`: `172.5 ns/op`, `0 B/op`, `0 allocs/op` — the amortized cost **per checked key** (identity + endomorphism).
-- Approximate hot-path throughput: `1e9 / 172.5 = ~5.8M keys/sec` per benchmark worker.
-- **GLV endomorphism + zero-copy Hash160 gain:** `~222 ns/key → ~171.5 ns/key` (`GOMAXPROCS=1`, median of 10), a **1.30x** speedup, still `0 allocs/op`.
-- `BenchmarkGenerateKeyAndHash160`: `29,322 ns/op`, showing the older fresh-scalar path is roughly `170x` slower per key than the batched walk.
+- **Real MacBook Air M3 runtime:** sustained program throughput around **26 million keys/sec at 4 threads** (up from ~19.9M under the previous endoFactor=2 design, ~1.33x) and about **39 million keys/sec at 8 threads** (each linear walk step now yields six checked keys via the endomorphism + negation).
+- `BenchmarkKeyStreamPerKey`: `136.7 ns/op`, `0 B/op`, `0 allocs/op` — the amortized cost **per checked key** across all six GLV+negation variants.
+- Approximate hot-path throughput: `1e9 / 136.7 = ~7.3M keys/sec` per benchmark worker.
+- **GLV 2→6 keys per EC step gain:** `~172.5 ns/key → ~136.7 ns/key` (`-benchtime=2s -count=6`, median), a **1.26x** per-key speedup over the 2-key design (**~1.62x** cumulatively over the original identity-only walk), still `0 allocs/op`.
+- `BenchmarkGenerateKeyAndHash160`: `28,741 ns/op`, showing the older fresh-scalar path is roughly `210x` slower per key than the batched walk.
 
-**Reality check:** even at 20 million keys/sec, searching 1% of the 2^160 address space would take roughly `2.3 × 10^31` years.
+**Reality check:** even at ~39 million keys/sec, searching 1% of the 2^160 address space would take roughly `1.2 × 10^31` years.
 
-The older per-key scalar-multiplication benchmark is still useful for teaching the naive pipeline. The new `BenchmarkKeyStreamPerKey` is the microbenchmark that best represents the optimized worker hot path. The headline **20M keys/sec** figure is measured from the running program across multiple workers on a MacBook Air M3.
+The older per-key scalar-multiplication benchmark is still useful for teaching the naive pipeline. The new `BenchmarkKeyStreamPerKey` is the microbenchmark that best represents the optimized worker hot path. The headline **~39M keys/sec** figure is measured from the running program across 8 workers on a MacBook Air M3.
 
 ### Getting Good Numbers
 
@@ -220,10 +220,10 @@ The optimized worker follows this pipeline:
 
 1. **Seed worker segment**: generate one random secp256k1 scalar per worker.
 2. **Build batch points**: advance consecutive private keys with `P + iG` affine addition instead of fresh scalar multiplication per key.
-3. **Apply the endomorphism**: for each point `(x, y)`, also take `(beta*x, y) = lambda*P` — a second key for one field multiply.
+3. **Expand via endomorphism + negation**: from each point `(x, y)`, derive six keys — `(x, beta*x, beta^2*x)` (scalars `k`, `lambda*k`, `lambda^2*k`), each in both parities (`(x, -y)`, scalar `n-k`) — for 2 field multiplies (negation is a free `02/03` prefix flip).
 4. **Hash compressed public keys**: SHA256 via `minio/sha256-simd`, then a multi-buffer RIPEMD160 that writes Hash160s directly into the result slice.
 5. **Lookup Hash160**: compare the 20-byte hash against the target set in O(1).
-6. **On match only**: reconstruct the private key (identity or `lambda`-scaled), encode the matching P2PKH address, print it, and append `<private_key_hex>:<address>` to the output file.
+6. **On match only**: reconstruct the private key for the matching variant (`k`, `n-k`, `lambda*k`, `n-lambda*k`, `lambda^2*k`, or `n-lambda^2*k`), encode the matching P2PKH address, print it, and append `<private_key_hex>:<address>` to the output file.
 
 The whole loop runs completely **offline**. No RPC node, no API, no network magic. Just math, fans, and scale.
 
@@ -248,7 +248,7 @@ See [COMPARISON.md](COMPARISON.md) for a detailed comparison table.
 
 ### Why doesn't brute force work?
 
-The P2PKH address hash space is 2^160, or about `1.46 × 10^48` possible hashes. Even at 20 million keys/second, searching 1% of that space is still roughly `2.3 × 10^31` years of work.
+The P2PKH address hash space is 2^160, or about `1.46 × 10^48` possible hashes. Even at ~39 million keys/second, searching 1% of that space is still roughly `1.2 × 10^31` years of work.
 
 That is not "needs a bigger server" hard. That is "your project manager should not put this in the sprint" hard.
 
