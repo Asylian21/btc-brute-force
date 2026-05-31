@@ -1,16 +1,52 @@
-# Bitcoin Address-Collision Research Toolkit 🔬
+# Bitcoin Address-Collision Research Toolkit
 
-A fast, offline Go research tool for studying Bitcoin P2PKH address generation, benchmark reality, and the beautiful absurdity of the 2^160 search space.
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![CI](https://github.com/Asylian21/btc-brute-force/actions/workflows/ci.yml/badge.svg)](https://github.com/Asylian21/btc-brute-force/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Asylian21/btc-brute-force?include_prereleases&label=release)](https://github.com/Asylian21/btc-brute-force/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-This project is not a wallet cracker. It is a lab bench. You can run it, measure it, push the CPU hard, and still walk away with the same conclusion Bitcoin has relied on for years: the math is doing its job.
+**btc-brute-force** is a fast, offline Go research toolkit for studying Bitcoin P2PKH address generation, Hash160 matching, secp256k1 performance, and the mathematical reality of the 2^160 Bitcoin address-collision search space.
 
-No cloud account, no API key, no hand-waving. Just local code, local CPU, and very large numbers.
+It is designed for cryptography education, Bitcoin security demonstrations, and reproducible Go performance benchmarks. It is not a wallet cracker, recovery product, or theft tool. You can run it, measure it, push the CPU hard, and still walk away with the same conclusion Bitcoin has relied on for years: the math is doing its job.
+
+No cloud account, no API key, no node, no network dependency. Just local code, local CPU, and very large numbers.
+
+## Repository Topics
+
+`bitcoin` · `bitcoin-security` · `cryptography` · `secp256k1` · `hash160` · `p2pkh` · `brute-force` · `address-collision` · `go` · `golang` · `benchmark` · `performance-engineering` · `offline-tool`
+
+## Table of Contents
+
+- [Safety and Ethics](#safety-and-ethics)
+- [Who This Is For](#who-this-is-for)
+- [Quick Start](#quick-start-)
+- [What Changed in This Version](#what-changed-in-this-version)
+- [Benchmarks](#benchmarks-)
+- [How It Works](#how-it-works)
+- [FAQ](#faq-)
+- [Comparison](#comparison)
+- [Releases](#releases)
+- [Contributing](#contributing)
+- [Related Article](#related-article)
 
 ## Safety and Ethics
 
 This toolkit is for education, performance research, and cryptographic intuition. Do not use it to attempt unauthorized access to funds or accounts. Brute forcing Bitcoin addresses is computationally infeasible, and trying to access assets you do not control is likely illegal.
 
 The point is to make the impossible measurable. That is useful science, and a useful antidote to overconfident claims about "secret brute-force methods."
+
+## Key Features
+
+- **Offline Bitcoin address-collision lab** for legacy mainnet P2PKH addresses (`1...`) with no RPC, API, wallet import, or network access.
+- **Optimized Go hot path** using batched secp256k1 affine walks, GLV endomorphism, point negation, Montgomery batch inversion, raw Hash160 lookup, and allocation-free worker buffers.
+- **Fused multi-buffer HASH160 pipeline** with vectorized SHA-256 (`sha256mb`) feeding multi-buffer RIPEMD-160 (`ripemd160-asm`) for realistic cryptographic throughput measurements.
+- **Systematic resumable scan** from private key `1`, with checkpointed scan-frontier state that works across thread-count changes.
+- **Honest security education** showing why Bitcoin brute force and broad address-collision search remain computationally infeasible even after serious optimization.
+- **Reproducible benchmarks** for Go, secp256k1, SHA-256, RIPEMD-160, Hash160, Base58, and Bitcoin address-generation performance.
+
+## Search Keywords
+
+Bitcoin brute force research, Bitcoin address collision, Bitcoin address-collision benchmark, Bitcoin P2PKH generator, Bitcoin Hash160 lookup, secp256k1 benchmark Go, Go cryptography benchmark, offline Bitcoin address scanner, Bitcoin private key search space, RIPEMD160 SHA256 Hash160, Bitcoin security education, why Bitcoin brute force is impossible.
 
 ## Who This Is For
 
@@ -24,7 +60,7 @@ Turn "Bitcoin brute force is impossible" into a live demo with real numbers, che
 
 ### Go Developers
 
-Study a CPU-heavy Go workload with batched elliptic-curve addition, Montgomery batch inversion, SIMD SHA256, a specialized RIPEMD160 hot path, allocation-free worker buffers, checkpointing, and atomic counters.
+Study a CPU-heavy Go workload with batched elliptic-curve addition, Montgomery batch inversion, a fused multi-buffer HASH160 hot path (vectorized SHA-256 + RIPEMD-160), allocation-free worker buffers, checkpointing, and atomic counters.
 
 ## Quick Start ⚡
 
@@ -108,95 +144,99 @@ This version is a major performance and usability pass. The old loop was concept
 
 The new loop is built like a proper research hot path:
 
-1. **Batched secp256k1 walk**: each worker does one scalar multiplication for its starting point, then advances through consecutive keys with affine point addition (`P + iG`) using a precomputed table of generator multiples.
+1. **Batched secp256k1 walk**: a worker does one scalar multiplication per claimed chunk to land on its starting point, then advances through consecutive keys with affine point addition (`P + iG`) using a precomputed table of generator multiples.
 2. **GLV endomorphism + point negation**: every affine point `(x, y)` yields SIX valid keys — the three endomorphism x-values `(x, beta*x, beta^2*x)` (scalars `k`, `lambda*k`, `lambda^2*k`), each in both point-negation parities (`-P = (x, -y)`, scalar `n-k`) — for just 2 field multiplies, since negation is a free `02/03` prefix flip (`y` is never serialized). That checks 6 keys per field inversion instead of 2; the scalars are reconstructed only on the rare match path. The `beta`/`lambda` constants and all six variants are verified end-to-end at startup, so a wrong constant or slot mismatch fails fast instead of silently missing matches.
 3. **Montgomery batch inversion**: the expensive field inversion in affine addition is amortized across a 1,024-step batch (6,144 keys after the 6x endomorphism + negation expansion).
 4. **Fast secp256k1 Fp field backend**: the per-key base-field arithmetic — the dominant CPU cost of the walk — runs on [`secp256k1-field`](https://github.com/Asylian21/secp256k1-field), a 5x52-limb implementation with arm64/amd64 assembler kernels, replacing dcrd's pure-Go 10x26 `FieldVal`. It is bit-identical to dcrd (differential-fuzzed) and roughly **doubles** the single-thread hot-loop throughput (see [BENCHMARKS.md](BENCHMARKS.md)).
 5. **Hash160 target set**: target addresses are decoded once at startup and stored as raw 20-byte Hash160 keys; Base58 encoding runs only on the rare match path.
-6. **Specialized RIPEMD160 with zero-copy output**: Hash160 always feeds RIPEMD160 with a 32-byte SHA256 digest, so the hot path uses a multi-buffer RIPEMD160 implementation verified against `golang.org/x/crypto/ripemd160` — and it writes its 20-byte digests straight into the result slice, with no intermediate buffer or per-key scatter copy.
-7. **Resume support**: long runs now write a checkpoint every 10 seconds and on clean interrupt, so progress can continue without losing segment positions.
+6. **Fused multi-buffer HASH160 with zero-copy output**: the whole batch's compressed pubkeys are hashed by one `hash160mb.FromPubkeys33` call — vectorized SHA-256 from [`sha256mb`](https://github.com/Asylian21/sha256mb) (arm64 `sha2x4` interleaves four messages through the ARMv8 hardware-SHA instructions, ~2.6x scalar) feeding multi-buffer RIPEMD-160 from [`ripemd160-asm`](https://github.com/Asylian21/ripemd160-asm). It is verified bit-for-bit against `crypto/sha256` + `golang.org/x/crypto/ripemd160` (the `btcutil.Hash160` algorithm) and writes its 20-byte digests straight into the result slice — no intermediate buffer or per-key scatter copy. Replacing the old per-key `minio/sha256-simd` calls lifted runtime throughput **+18.7%** at 8 threads (see [BENCHMARKS.md](BENCHMARKS.md)).
+7. **Systematic, resumable scan**: the key space is swept in order from key `1` in fixed contiguous chunks handed out by a single global cursor, so no key is ever skipped — no matter how many threads run, or how that count changes between runs. A checkpoint storing a single frontier position is written every 10 seconds and on clean interrupt, so progress continues exactly where it stopped.
 8. **macOS build fix**: the Makefile uses external link mode on Darwin to avoid the `missing LC_UUID load command` issue seen with older Go toolchains on macOS 15+.
 
 The goal is not to make Bitcoin brute force practical. The goal is to make the benchmark honest: remove avoidable overhead, measure the real bottlenecks, and still show that the search space wins by an absurd margin.
 
 ## Resuming (Checkpoints) 💾
 
-Each worker walks its own private-key sequence starting from a random base scalar
-(`base, base+1, base+2, ...`). This is why the per-worker sample keys in the stats
-output share a long common prefix that only changes at the end — consecutive keys
-differ by 1, so the low bytes move first.
+The key space is scanned **systematically from private key `1` upward**, with a
+hard guarantee that **no key is ever skipped** — regardless of how many worker
+threads you use, and even if you change that count between runs.
 
-Because each worker advances an **independent** sequence (a "segment"), "where we
-stopped" can't be captured by a single value. The program writes a JSON checkpoint
-with the next private key for **every** segment, on the same 10-second cadence as
-the stats line (plus once at startup and once on a clean `Ctrl+C`):
+To make this robust, work is **not** split into one fixed range per thread.
+Instead the space is divided into fixed contiguous **chunks**; a single global
+cursor hands out the next chunk, and every worker simply claims the next
+unclaimed chunk and walks it in order. Threads are interchangeable: with `N`
+workers, `N` chunks are processed at once.
+
+Because chunks are handed out in increasing order and each is walked
+start-to-finish, the lowest chunk still in progress is a **frontier**: every key
+below it is done. The checkpoint stores exactly that single frontier key, on the
+same 10-second cadence as the stats line (plus once at startup and once on a
+clean `Ctrl+C`):
 
 ```json
 {
-  "version": 1,
-  "updated_at": "2026-05-29T13:58:00Z",
+  "version": 2,
+  "updated_at": "2026-05-31T17:16:20Z",
   "threads": 8,
-  "segments": 8,
+  "chunk_steps": 16384,
   "key_batch_size": 1024,
-  "total_keys": 1234567890,
-  "workers": [
-    { "id": 0, "next_private_key": "f0cf…82f9", "keys_processed": 1024000 },
-    { "id": 1, "next_private_key": "a13b…0e77", "keys_processed": 1024000 }
-  ]
+  "next_private_key": "0000000000000000000000000000000000000000000000000000000000000001",
+  "total_keys": 0
 }
 ```
 
+- **`next_private_key`** — the frontier: every key below it has been checked; the scan resumes here.
+- **`total_keys`** — keys checked up to the frontier (`endoFactor` per linear key); derived from the frontier, so it only moves forward.
 - **Default file:** `checkpoint.json` in the working directory (override with `--checkpoint=path`).
-- **Fresh run (default):** every worker starts from a new random key.
-- **Resume:** add `--resume` to seed each worker from its saved `next_private_key`:
+- **Fresh run (default):** the scan starts at key `1`.
+- **Resume:** add `--resume` to continue from the saved frontier:
 
 ```bash
 # Start a run (writes checkpoint.json every 10s)
 btc-brute-force 8 matches.txt addresses.txt
 
-# Later, continue exactly where it stopped
-btc-brute-force --resume 8 matches.txt addresses.txt
+# Later, continue exactly where it stopped — with ANY thread count
+btc-brute-force --resume 4 matches.txt addresses.txt
 ```
 
 ### Changing the thread count between resumes
 
-Segments are **decoupled from threads**, so you can change the CPU/thread count
-between runs (e.g. `4 → 8 → 12 → 4`) without losing or corrupting anything:
-
-| Situation                         | Behavior                                                                       |
-| --------------------------------- | ------------------------------------------------------------------------------ |
-| `threads > saved segments`        | Resume all saved segments **and add** new random segments (set grows).         |
-| `threads == saved segments`       | Resume everything (the common case).                                           |
-| `threads < saved segments`        | Resume the first `threads`; the surplus segments are **preserved (frozen)** with their exact position and resume automatically when you next run with enough threads. |
-
-So `total_keys` and the per-segment positions only ever move forward — the number
-of tracked segments equals the **largest** thread count you've ever used.
+The scan is **thread-count agnostic**. The checkpoint stores a single frontier,
+not per-thread state, so you can freely change the CPU/thread count between runs
+(e.g. `4 → 8 → 12 → 4`). More threads simply process more chunks at once; fewer
+threads process fewer. Coverage and the no-skip guarantee are unaffected — a
+resume re-checks at most `threads × chunk_steps` keys (cheap and idempotent) and
+never skips one.
 
 Notes:
 
 - Flags must come **before** the positional arguments (Go `flag` parsing stops at the first non-flag).
 - The checkpoint is written atomically (temp file + rename) and is git-ignored (it's runtime state).
-- A worker resumes by re-doing at most the last in-flight batch, so no keys are skipped.
+- Private key `0` is the secp256k1 point at infinity (invalid), so the scan begins at `1`, never `0`.
+- The GLV endomorphism still emits 6 keys per step, but only the linear key advances the contiguous frontier; the other 5 are bonus checks of scattered keys and can never create a gap.
+- Checkpoints written by the old per-segment format (`version 1`) are not compatible; delete the file to start a fresh systematic scan.
 
 ## Benchmarks 📊
 
 Performance depends on CPU architecture, Go version, thermal state, worker count, and target-set size. The short version: the optimized code is fast enough to be interesting, and the Bitcoin address space is still astronomically larger.
 
-**~39M keys/sec is impressive. 2^160 remains undefeated.**
+**~45.1 million keys/sec is impressive. 2^160 remains undefeated.**
 
 See [BENCHMARKS.md](BENCHMARKS.md) for raw output and methodology.
 
 **Current local benchmark (Apple Silicon / darwin arm64 / Go 1.22.5):**
 
-- **Real MacBook Air M3 runtime:** sustained program throughput around **26 million keys/sec at 4 threads** (up from ~19.9M under the previous endoFactor=2 design, ~1.33x) and about **39 million keys/sec at 8 threads** (each linear walk step now yields six checked keys via the endomorphism + negation).
-- `BenchmarkKeyStreamPerKey`: `136.7 ns/op`, `0 B/op`, `0 allocs/op` — the amortized cost **per checked key** across all six GLV+negation variants.
-- Approximate hot-path throughput: `1e9 / 136.7 = ~7.3M keys/sec` per benchmark worker.
-- **GLV 2→6 keys per EC step gain:** `~172.5 ns/key → ~136.7 ns/key` (`-benchtime=2s -count=6`, median), a **1.26x** per-key speedup over the 2-key design (**~1.62x** cumulatively over the original identity-only walk), still `0 allocs/op`.
-- `BenchmarkGenerateKeyAndHash160`: `28,741 ns/op`, showing the older fresh-scalar path is roughly `210x` slower per key than the batched walk.
+- **Real MacBook Air M3 runtime:** latest sustained 8-thread program output reached about **45.1 million keys/sec** — **+18.7%** over the ~38.0M pre-`sha256mb` baseline in a back-to-back A/B, after routing HASH160 through the vectorized multi-buffer SHA-256 + RIPEMD-160 pipeline. The same generation sustains around **26 million keys/sec at 4 threads** (that 4-thread figure predates the SHA-256 work; it was itself up from ~19.9M under the previous endoFactor=2 design, ~1.33x).
+- `BenchmarkKeyStreamPerKey`: `118.5 ns/op`, `0 B/op`, `0 allocs/op` — the amortized cost **per checked key** across all six GLV+negation variants (down from `136.7 ns/op`, **−13.35%** by `benchstat`, after the SHA-256 vectorization).
+- Approximate hot-path throughput: `1e9 / 118.5 = ~8.4M keys/sec` per benchmark worker.
+- **Multi-buffer SHA-256 gain:** SHA-256 was ~23% of the per-key cost; `sha256mb`'s arm64 `sha2x4` kernel hashes it ~2.6x faster, which Amdahl's law turns into the measured ~−13% per-key and **+18.7%** at 8 threads.
+- `BenchmarkGenerateKeyAndHash160`: `29,105 ns/op`, showing the older fresh-scalar path is roughly `245x` slower per key than the batched walk.
 
-**Reality check:** even at ~39 million keys/sec, searching 1% of the 2^160 address space would take roughly `1.2 × 10^31` years.
+**Progress snapshot:** the hot path now checks six real compressed-public-key variants for every computed affine point, hashes the whole batch through a fused multi-buffer HASH160 (vectorized SHA-256 → RIPEMD-160) with zero-copy output, avoids hot-loop allocations, and records a single resumable scan frontier through checkpoints. The runtime benchmark is no longer dominated by per-key scalar multiplication or per-key SHA-256; it is mostly measuring the remaining RIPEMD-160 and field arithmetic, target lookup, and scheduler cost.
 
-The older per-key scalar-multiplication benchmark is still useful for teaching the naive pipeline. The new `BenchmarkKeyStreamPerKey` is the microbenchmark that best represents the optimized worker hot path. The headline **~39M keys/sec** figure is measured from the running program across 8 workers on a MacBook Air M3.
+**Reality check:** even at **~45.1 million keys/sec**, searching 1% of the 2^160 address space would take roughly `1.03 × 10^31` years.
+
+The older per-key scalar-multiplication benchmark is still useful for teaching the naive pipeline. The new `BenchmarkKeyStreamPerKey` is the microbenchmark that best represents the optimized worker hot path. The headline **~45.1 million keys/sec** figure is measured from the running program across 8 workers on a MacBook Air M3.
 
 ### Getting Good Numbers
 
@@ -218,10 +258,10 @@ go test -ldflags="-s -w -linkmode=external" -bench=. -benchmem -benchtime=5s . .
 
 The optimized worker follows this pipeline:
 
-1. **Seed worker segment**: generate one random secp256k1 scalar per worker.
+1. **Claim a chunk**: take the next contiguous chunk of the key space from the shared cursor and rebase to its first key with one scalar multiplication.
 2. **Build batch points**: advance consecutive private keys with `P + iG` affine addition instead of fresh scalar multiplication per key.
 3. **Expand via endomorphism + negation**: from each point `(x, y)`, derive six keys — `(x, beta*x, beta^2*x)` (scalars `k`, `lambda*k`, `lambda^2*k`), each in both parities (`(x, -y)`, scalar `n-k`) — for 2 field multiplies (negation is a free `02/03` prefix flip).
-4. **Hash compressed public keys**: SHA256 via `minio/sha256-simd`, then a multi-buffer RIPEMD160 that writes Hash160s directly into the result slice.
+4. **Hash compressed public keys**: one fused multi-buffer HASH160 pass — vectorized SHA-256 (`sha256mb`, arm64 4-lane hardware-SHA) feeding multi-buffer RIPEMD-160 (`ripemd160-asm`, NEON) — that writes Hash160s directly into the result slice.
 5. **Lookup Hash160**: compare the 20-byte hash against the target set in O(1).
 6. **On match only**: reconstruct the private key for the matching variant (`k`, `n-k`, `lambda*k`, `n-lambda*k`, `lambda^2*k`, or `n-lambda^2*k`), encode the matching P2PKH address, print it, and append `<private_key_hex>:<address>` to the output file.
 
@@ -248,7 +288,7 @@ See [COMPARISON.md](COMPARISON.md) for a detailed comparison table.
 
 ### Why doesn't brute force work?
 
-The P2PKH address hash space is 2^160, or about `1.46 × 10^48` possible hashes. Even at ~39 million keys/second, searching 1% of that space is still roughly `1.2 × 10^31` years of work.
+The P2PKH address hash space is 2^160, or about `1.46 × 10^48` possible hashes. Even at **~45.1 million keys/second**, searching 1% of that space is still roughly `1.03 × 10^31` years of work.
 
 That is not "needs a bigger server" hard. That is "your project manager should not put this in the sprint" hard.
 
@@ -291,6 +331,15 @@ git clone https://github.com/Asylian21/btc-brute-force.git
 cd btc-brute-force
 make build
 ```
+
+## GitHub Discoverability
+
+For the best GitHub and search-engine preview, use this repository metadata:
+
+- **Description:** `Offline Bitcoin address-collision research toolkit and Go benchmark for P2PKH, Hash160, secp256k1, SHA-256, RIPEMD-160, and brute-force infeasibility demos.`
+- **Website:** `https://medium.com/@asylian21/brute-force-vs-reality-what-my-bitcoin-brute-force-really-shows-67872323d6bf`
+- **Topics:** `bitcoin`, `bitcoin-security`, `cryptography`, `secp256k1`, `hash160`, `p2pkh`, `brute-force`, `address-collision`, `go`, `golang`, `benchmark`, `performance-engineering`, `offline-tool`
+- **Social preview:** generate and upload `docs/social-preview.png`; see [`docs/SOCIAL_PREVIEW_INSTRUCTIONS.md`](docs/SOCIAL_PREVIEW_INSTRUCTIONS.md).
 
 ## License
 
@@ -342,8 +391,9 @@ An in-depth Medium article explaining the mathematics, benchmarks, and reality-c
 - **btcsuite** – Bitcoin libraries for Go
 - **decred/dcrd** – secp256k1 scalar arithmetic and point multiplication
 - **[Asylian21/secp256k1-field](https://github.com/Asylian21/secp256k1-field)** – fast secp256k1 base-field (Fp) arithmetic with arm64/amd64 assembler
+- **[Asylian21/sha256mb](https://github.com/Asylian21/sha256mb)** – multi-buffer SHA-256 (arm64 hardware-SHA) and fused HASH160 hot path
 - **[Asylian21/ripemd160-asm](https://github.com/Asylian21/ripemd160-asm)** – multi-buffer SIMD RIPEMD160
-- **minio/sha256-simd** – SIMD-accelerated SHA256 implementation
+- **minio/sha256-simd** – SIMD-accelerated SHA256 (now only the address checksum / decode path)
 - **Bitcoin developers** – For creating cryptographically secure money
 
 ---

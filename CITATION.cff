@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this software for Bitcoin security education, cryptography teaching, or Go performance benchmarking, please cite it."
+type: software
+title: "btc-brute-force: Bitcoin Address-Collision Research Toolkit"
+abstract: "An offline Go research toolkit for studying Bitcoin P2PKH address generation, Hash160 lookup, secp256k1 performance, and why broad Bitcoin brute-force address-collision search is computationally infeasible."
+authors:
+  - family-names: "Zita"
+    given-names: "David"
+repository-code: "https://github.com/Asylian21/btc-brute-force"
+url: "https://github.com/Asylian21/btc-brute-force"
+license: "MIT"
+date-released: "2026-05-31"
+keywords:
+  - bitcoin
+  - bitcoin-security
+  - cryptography
+  - secp256k1
+  - hash160
+  - p2pkh
+  - brute-force
+  - address-collision
+  - golang
+  - benchmark
+  - performance-engineering
+  - security-education

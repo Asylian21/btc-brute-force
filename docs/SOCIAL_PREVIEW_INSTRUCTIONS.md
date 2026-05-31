@@ -2,18 +2,20 @@
 
 ## Requirements
 
-Create a 1200×630px PNG image with the following text:
+Create a 1200x630px PNG image with the following text:
 
 **Title:** "Bitcoin Address-Collision Lab"  
-**Subtitle:** "btc-brute-force"
+**Subtitle:** "Go Hash160 + secp256k1 Benchmark"  
+**Footer:** "btc-brute-force | offline Bitcoin security research"
 
 ## Design Guidelines
 
 - **Background**: Dark (#121212 or similar)
 - **Title Color**: Bitcoin orange (#FF9300)
 - **Subtitle Color**: White (#FFFFFF)
+- **Footer Color**: Muted gray (#B4B4B4)
 - **Font**: Sans-serif, bold for title, regular for subtitle
-- **Layout**: Centered text, title larger than subtitle
+- **Layout**: Centered text, title larger than subtitle, short footer below
 
 ## Quick Generation Options
 
@@ -37,8 +39,10 @@ Use online image editors like:
 convert -size 1200x630 xc:'#121212' \
   -font Helvetica-Bold -pointsize 72 -fill '#FF9300' \
   -gravity center -annotate +0-50 "Bitcoin Address-Collision Lab" \
-  -font Helvetica -pointsize 48 -fill white \
-  -gravity center -annotate +0+50 "btc-brute-force" \
+  -font Helvetica -pointsize 46 -fill white \
+  -gravity center -annotate +0+50 "Go Hash160 + secp256k1 Benchmark" \
+  -font Helvetica -pointsize 30 -fill '#B4B4B4' \
+  -gravity center -annotate +0+130 "btc-brute-force | offline Bitcoin security research" \
   social-preview.png
 ```
 
