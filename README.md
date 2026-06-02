@@ -40,7 +40,8 @@ The point is to make the impossible measurable. That is useful science, and a us
 - **Offline Bitcoin address-collision lab** for legacy mainnet P2PKH addresses (`1...`) with no RPC, API, wallet import, or network access.
 - **Optimized Go hot path** using batched secp256k1 affine walks, GLV endomorphism, point negation, Montgomery batch inversion, raw Hash160 lookup, and allocation-free worker buffers.
 - **Fused multi-buffer HASH160 pipeline** with vectorized SHA-256 (`sha256mb`) feeding multi-buffer RIPEMD-160 (`ripemd160-asm`) for realistic cryptographic throughput measurements.
-- **Systematic resumable scan** from private key `1`, with checkpointed scan-frontier state that works across thread-count changes.
+- **Apple Metal GPU acceleration** (Apple Silicon): auto-enabled, bit-exact GPU Hash160 offload with zero-copy unified-memory buffers and a CPU/GPU producer–consumer pipeline — ~120M keys/sec on an M3 (~2.7–2.9x the CPU path), with transparent CPU fallback and startup calibration so it never regresses.
+- **Systematic resumable scan** from private key `1`, with checkpointed scan-frontier state that works across thread-count changes (and across CPU/GPU modes).
 - **Honest security education** showing why Bitcoin brute force and broad address-collision search remain computationally infeasible even after serious optimization.
 - **Reproducible benchmarks** for Go, secp256k1, SHA-256, RIPEMD-160, Hash160, Base58, and Bitcoin address-generation performance.
 
@@ -88,7 +89,7 @@ The demo is intentionally tiny: 20 addresses, zero drama. It exists so users can
 
 ```bash
 make build
-./bin/btc-brute-force [--checkpoint=path] [--resume] <threads> <output.txt> <addresses.txt>
+./bin/btc-brute-force [--checkpoint=path] [--resume] [--gpu=auto|on|off] <threads> <output.txt> <addresses.txt>
 ```
 
 The address file must contain one legacy mainnet P2PKH address per line, meaning addresses that start with `1`. Large local address lists, match outputs, and checkpoints are ignored by git.
@@ -97,6 +98,25 @@ The address file must contain one legacy mainnet P2PKH address per line, meaning
 ./bin/btc-brute-force 8 matches.txt attack-addresses-p2pkh.txt
 ./bin/btc-brute-force --resume 8 matches.txt attack-addresses-p2pkh.txt
 ```
+
+#### GPU acceleration (Apple Silicon)
+
+On a Mac with Apple Silicon, `make build` produces a Metal-enabled binary and
+the GPU Hash160 offload is **auto-enabled** — on startup the program runs a
+bit-exact self-test against `btcutil.Hash160` and a short calibration, then
+picks the faster backend (so it never runs slower than the CPU path). Control it
+with `--gpu`:
+
+```bash
+./bin/btc-brute-force --gpu=auto 8 matches.txt addresses.txt   # default: GPU if faster
+./bin/btc-brute-force --gpu=on   8 matches.txt addresses.txt   # force GPU (fatal if unavailable)
+./bin/btc-brute-force --gpu=off  8 matches.txt addresses.txt   # CPU only
+```
+
+Requirements: macOS on Apple Silicon, built natively with cgo (the default for
+`make build` / `make bench-gpu`). Other platforms — and the `make build-cpu`
+(`-tags=nometal`) build — transparently use the CPU path. Tune the pipeline with
+`BTC_GPU_PRODUCERS` and `BTC_GPU_CHUNKS` if needed. See [BENCHMARKS.md](BENCHMARKS.md#gpu-apple-metal-hash160-offload).
 
 For a custom thread count in the demo, pass `THREADS`:
 
@@ -110,7 +130,7 @@ Download binaries from [Releases](https://github.com/Asylian21/btc-brute-force/r
 
 - Linux (AMD64, ARM64)
 - Windows (AMD64)
-- macOS (Intel, Apple Silicon)
+- macOS (Intel, Apple Silicon — the Apple Silicon build is compiled natively with cgo and ships the **Metal GPU** Hash160 path; Intel is CPU-only)
 
 **Example (Linux):**
 
@@ -304,7 +324,7 @@ With roughly 50 million funded addresses and 2^160 possible Hash160 values, the 
 
 ### Can GPUs speed this up?
 
-Yes. GPUs can add serious throughput. They do not change the scale of the search space. Even at 1 billion keys/sec, the answer is still measured in absurd cosmic time.
+Yes — and this project does it on Apple Silicon. The Metal backend offloads the Hash160 (the ~80% hashing bottleneck) to the GPU with zero-copy unified-memory buffers, reaching ~120M keys/sec on an M3 (~2.7–2.9x the CPU path). See [GPU acceleration](#gpu-acceleration-apple-silicon) and [BENCHMARKS.md](BENCHMARKS.md#gpu-apple-metal-hash160-offload). GPUs add serious throughput but do **not** change the scale of the search space: even at billions of keys/sec, the answer is still measured in absurd cosmic time.
 
 ### What if quantum computers break this?
 

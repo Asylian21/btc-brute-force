@@ -63,6 +63,73 @@ BenchmarkHash160-8                 	20302436	       298.2 ns/op	     296 B/op	  
 BenchmarkBase58Encode-8            	93246190	        64.47 ns/op	     144 B/op	       3 allocs/op
 ```
 
+## GPU (Apple Metal) Hash160 Offload
+
+On Apple Silicon the program auto-enables a GPU pipeline that moves the Hash160
+(SHA-256 + RIPEMD-160) off the CPU. The CPU profile shows hashing is **~79.4%**
+of the per-key cost (RIPEMD-160 64.5%, SHA-256 15.0%), with the secp256k1 walk
+~20%, so offloading just the hash to the GPU keeps the elite CPU EC walk feeding
+the device. CPU producers run the batched affine walk and write compressed
+pubkeys **straight into shared (unified-memory) Metal buffers — zero copy** —
+then dispatch one kernel over a large multi-chunk batch; one GPU thread hashes
+one key. A gap-free `frontierTracker` preserves resumable checkpoints under the
+pipeline's out-of-order completion.
+
+### Runtime Throughput (end-to-end)
+
+On a MacBook Air M3, 8 producers feeding the GPU sustained about **120 million
+checked keys/sec** end-to-end (`[Stats]` line, includes EC walk, GPU Hash160,
+target lookup, and checkpointing) versus ~41–45M for the CPU path — a measured
+**~2.7–2.9x** runtime gain on identical hardware, with zero loss of correctness
+(the GPU digests are bit-exact, verified at startup).
+
+The startup auto-calibration on the same machine (each backend measured for
+~0.3s, EC walk + hash, no target scan) picked the GPU:
+
+```text
+GPU self-test: PASS — bit-exact vs btcutil.Hash160 on Apple M3
+Calibrating backends (~0.6s)...
+  GPU pipeline :  123.5 M keys/sec
+  CPU pipeline :   48.6 M keys/sec
+Active backend: GPU — Apple M3 (Apple Metal) | 8 producer(s) x 6 chunks/dispatch = 589824 keys/dispatch
+```
+
+`--gpu=auto` (default) runs this calibration and chooses the faster backend, so
+the GPU path **can never regress below the CPU path**. `--gpu=on` forces it
+(fatal if the device or bit-exact self-test fails); `--gpu=off` stays on CPU.
+
+### Kernel throughput vs batch size
+
+The raw kernel saturates only at large batches, which is why a dispatch spans
+several 98,304-key chunks. Multi-buffer CPU HASH160 (single thread) is shown for
+scale:
+
+| Batch (keys) | GPU Metal Hash160 | CPU `hash160mb` (1 thread) |
+| ---: | ---: | ---: |
+| 16,384 | 27.3 M/s | 10.6 M/s |
+| 65,536 | 45.2 M/s | 10.7 M/s |
+| 262,144 | 135.3 M/s | 10.7 M/s |
+| 1,048,576 | **159.9 M/s** | 10.6 M/s |
+
+The bit-exact correctness test hashes 1,000,000 messages (plus genuine
+secp256k1 pubkeys) and compares every 20-byte digest to `btcutil.Hash160`.
+
+### Reproduce
+
+```text
+# GPU vs CPU Hash160 throughput (Apple Silicon, darwin only)
+make bench-gpu
+
+# Bit-exact correctness (1M messages + real pubkeys)
+go test -ldflags="-linkmode=external" -run TestHash160 ./gpu/metal/
+
+# CPU baseline for comparison (Metal compiled out)
+make build-cpu && ./bin/btc-brute-force-cpu 8 out.txt addresses.txt
+```
+
+End-to-end depends on RAM and core count; tune with `BTC_GPU_PRODUCERS` and
+`BTC_GPU_CHUNKS` (defaults: NumCPU producers, 6 chunks/dispatch ≈ 590k keys).
+
 ## What Changed
 
 The previous benchmark story was dominated by per-key secp256k1 scalar multiplication. That is useful for teaching the naive Bitcoin address pipeline, but it is not how the current worker is structured.
