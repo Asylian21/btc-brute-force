@@ -24,9 +24,10 @@ jobs:
           - goos: darwin
             goarch: amd64
             binary_name: btc-brute-force-${{ github.ref_name }}-macos-amd64
-          - goos: darwin
-            goarch: arm64
-            binary_name: btc-brute-force-${{ github.ref_name }}-macos-arm64
+          # NOTE: darwin/arm64 is built natively in the build-macos-arm64 job
+          # below (CGO_ENABLED=1) so the released Apple Silicon binary ships the
+          # Metal GPU Hash160 path. A CGO_ENABLED=0 cross-compile here would be
+          # CPU-only.
 
     steps:
       - uses: actions/checkout@v4
@@ -54,9 +55,49 @@ jobs:
           path: ${{ matrix.binary_name }}
           retention-days: 30
 
+  build-macos-arm64:
+    name: Build darwin-arm64 (native, Metal GPU)
+    runs-on: macos-14 # Apple Silicon runner — required for CGO + Metal
+    env:
+      BINARY_NAME: btc-brute-force-${{ github.ref_name }}-macos-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Build (CGO + Metal, native arm64)
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+          CGO_ENABLED: 1
+        # -s -w is required: stripping triggers a valid ad-hoc code signature
+        # (an unstripped external-linked cgo binary is rejected by macOS as
+        # "invalid signature"). -linkmode=external adds LC_UUID for Go < 1.24.
+        run: |
+          go build -ldflags="-s -w -linkmode=external" -o "$BINARY_NAME" ./bitcoin-wallet-bruteforce-offline.go
+
+      - name: Verify code signature
+        run: codesign -v -vvv "$BINARY_NAME"
+
+      - name: Metal Hash160 bit-exact test (skips if runner has no GPU)
+        run: go test -ldflags="-linkmode=external" -run 'TestHash160' ./gpu/metal/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-brute-force-${{ github.ref_name }}-macos-arm64
+          path: btc-brute-force-${{ github.ref_name }}-macos-arm64
+          retention-days: 30
+
   release:
     name: Create Release
-    needs: build
+    needs: [build, build-macos-arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: write
