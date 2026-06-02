@@ -83,6 +83,8 @@ import (
 	"github.com/btcsuite/btcutil/base58"                // Base58 encoding for addresses
 	secp "github.com/decred/dcrd/dcrec/secp256k1/v4"    // Low-level EC point arithmetic (incremental walk)
 	sha256simd "github.com/minio/sha256-simd"           // SIMD-accelerated SHA256 (2-3x faster)
+
+	gpumetal "github.com/Asylian21/btc-brute-force/gpu/metal" // Apple Metal GPU Hash160 offload (no-op stub off darwin/cgo)
 )
 
 // ============================================================================
@@ -486,12 +488,15 @@ func (ks *keyStream) writeSextet(x, y *field.Val, p, m int) {
 }
 
 /*
-nextBatch advances the stream by m = len(out)/endoFactor linear walk steps and
-writes len(out) Hash160s to out. Each linear step emits endoFactor (6) keys via
-writeSextet, laid out variant-major: for step p, variant v occupies slot v*m+p, so
-len(out) MUST be endoFactor*m.
+fillPubkeysSteps advances the stream by m linear walk steps and serializes the
+endoFactor*m compressed public keys (all GLV + negation variants) into ks.pubBuf
+at pubStride. It performs NO hashing — that is the caller's job (the CPU path
+runs a fused multi-buffer HASH160; the GPU path dispatches a Metal kernel over
+the same bytes). The pubkey destination is ks.pubBuf, which the GPU producer
+repoints at a shared (unified-memory) Metal buffer for zero-copy fills, while the
+CPU path leaves it as the stream's own scratch buffer.
 
-It returns the absolute LINEAR key offset of out[0]. The slot v*m+i holds the key
+It returns the absolute LINEAR key offset of step 0. Slot v*m+i holds the key
 whose linear scalar is k = base + start + i and whose variant scalar follows
 privateKeyForVariant (v0:k, v1:n-k, v2:λk, v3:n-λk, v4:λ²k, v5:n-λ²k mod N). This
 lets the caller reconstruct the private key for any match without tracking
@@ -505,12 +510,9 @@ Math per linear step (P is the batch base point, Q = (j+1)*G from the table):
 
 The m divisions share a single inversion via Montgomery's trick. Each computed
 point (x3, y3) then yields all 6 GLV+negation keys via writeSextet for 2 extra
-field multiplies (beta*x3, beta^2*x3) — no extra inversion. The two hashes of
-Hash160 run afterwards in one fused multi-buffer pass over the whole batch.
+field multiplies (beta*x3, beta^2*x3) — no extra inversion.
 */
-func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
-	total := len(out)       // identity + endomorphism candidates
-	m := total / endoFactor // linear walk steps (affine points computed)
+func (ks *keyStream) fillPubkeysSteps(m int) uint64 {
 	start := ks.offset
 
 	// Phase 1: serialize every point's compressed pubkey — all 6 GLV+negation
@@ -591,18 +593,28 @@ func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
 		}
 	}
 
-	// Phase 2: a single fused multi-buffer HASH160 pass — multi-buffer SHA-256
-	// (sha256mb) feeding multi-buffer RIPEMD-160 (ripemd160-asm) — over all
-	// `total` compressed pubkeys, written STRAIGHT into the caller's slice. out
-	// is [][20]byte whose backing array is total*20 contiguous bytes and
-	// hash160mb.Size == 20, so dst[i*20:(i+1)*20] lands each HASH160 exactly on
-	// out[i] — no intermediate buffer and no scatter copy. Only the first 33
-	// bytes of each pubStride slot are read. With the library's scalar fallback
-	// this is bit-identical to a per-key btcutil.Hash160.
+	ks.offset += uint64(m)
+	return start
+}
+
+// nextBatch fills one batch of pubkeys (len(out)/endoFactor linear steps) and
+// runs the fused multi-buffer HASH160 over them, writing len(out) Hash160s
+// straight into out. This is the CPU hot path and stays bit-identical to the
+// previous implementation. The GPU path instead calls fillPubkeysSteps directly
+// (into a shared Metal buffer) and hashes whole multi-chunk buffers on-device.
+func (ks *keyStream) nextBatch(out [][20]byte) uint64 {
+	total := len(out)
+	start := ks.fillPubkeysSteps(total / endoFactor)
+
+	// A single fused multi-buffer HASH160 pass — multi-buffer SHA-256 (sha256mb)
+	// feeding multi-buffer RIPEMD-160 (ripemd160-asm) — over all `total`
+	// compressed pubkeys, written STRAIGHT into the caller's slice. out's backing
+	// array is total*20 contiguous bytes and hash160mb.Size == 20, so each digest
+	// lands exactly on out[i] (no intermediate buffer, no scatter copy). Only the
+	// first 33 bytes of each pubStride slot are read; bit-identical to a per-key
+	// btcutil.Hash160.
 	dst := unsafe.Slice((*byte)(unsafe.Pointer(&out[0])), total*hash160mb.Size)
 	hash160mb.FromPubkeys33(dst, ks.pubBuf, total, pubStride)
-
-	ks.offset += uint64(m)
 	return start
 }
 
@@ -633,6 +645,33 @@ func (ks *keyStream) privateKeyForVariant(absOffset uint64, v int) *btcec.Privat
 	}
 	if v%2 == 1 {
 		k.Negate() // negation variant -P: n - k (mod N)
+	}
+	kb := k.Bytes()
+	priv, _ := btcec.PrivKeyFromBytes(kb[:])
+	return priv
+}
+
+// privateKeyForVariantFromBase reconstructs the private key for GLV+negation
+// variant v at a linear offset, given an explicit 32-byte base seed instead of a
+// live keyStream. It mirrors privateKeyForVariant exactly (k = base+offset, then
+// the lambda image and negation by variant). The GPU scan path uses it because
+// one dispatch covers many chunks and the producer's keyStream no longer holds
+// the base of the chunk a match landed in. Match-path only, so cost is moot.
+func privateKeyForVariantFromBase(baseSeed [32]byte, absOffset uint64, v int) *btcec.PrivateKey {
+	var addBytes [32]byte
+	binary.BigEndian.PutUint64(addBytes[24:], absOffset)
+	var base, add, k secp.ModNScalar
+	base.SetBytes(&baseSeed)
+	add.SetBytes(&addBytes)
+	k.Set(&base).Add(&add)
+	switch v {
+	case 2, 3:
+		k.Mul(&lambdaScalar)
+	case 4, 5:
+		k.Mul(&lambda2Scalar)
+	}
+	if v%2 == 1 {
+		k.Negate()
 	}
 	kb := k.Bytes()
 	priv, _ := btcec.PrivKeyFromBytes(kb[:])
@@ -777,6 +816,57 @@ type scanState struct {
 	nextChunk uint64 // atomic
 }
 
+// frontierTracker is the GPU-mode scan cursor + gap-free frontier. The GPU
+// pipeline completes whole multi-chunk dispatches OUT OF ORDER (a producer that
+// claimed a later range may finish before an earlier one), so the simple
+// "min currentChunk over workers" rule used by the CPU path is not enough. The
+// tracker hands out contiguous chunk ranges (claim) and, as ranges complete,
+// advances `frontier` only across a contiguous prefix of completed chunks
+// (complete). The checkpoint stores `frontier`, so every key below it is
+// guaranteed done and a resume can re-scan at most the in-flight ranges above it
+// without ever skipping a key. All methods are safe for concurrent use.
+type frontierTracker struct {
+	mu       sync.Mutex
+	next     uint64          // next chunk index to hand out
+	frontier uint64          // lowest chunk not yet known complete
+	done     map[uint64]bool // completed chunks at or above frontier
+}
+
+func newFrontierTracker(start uint64) *frontierTracker {
+	return &frontierTracker{next: start, frontier: start, done: make(map[uint64]bool)}
+}
+
+// claim reserves n contiguous chunks and returns the first index of the range.
+func (f *frontierTracker) claim(n uint64) uint64 {
+	f.mu.Lock()
+	s := f.next
+	f.next += n
+	f.mu.Unlock()
+	return s
+}
+
+// complete marks the n-chunk range [start, start+n) done and advances the
+// frontier across every now-contiguous completed chunk.
+func (f *frontierTracker) complete(start, n uint64) {
+	f.mu.Lock()
+	for i := uint64(0); i < n; i++ {
+		f.done[start+i] = true
+	}
+	for f.done[f.frontier] {
+		delete(f.done, f.frontier)
+		f.frontier++
+	}
+	f.mu.Unlock()
+}
+
+// frontierChunk returns the lowest chunk not yet guaranteed complete.
+func (f *frontierTracker) frontierChunk() uint64 {
+	f.mu.Lock()
+	v := f.frontier
+	f.mu.Unlock()
+	return v
+}
+
 // workerProgress publishes the chunk a single worker is currently processing
 // (claimed, possibly unfinished). The checkpoint frontier is the minimum of
 // these over active workers, so it never sits above an unfinished chunk. The
@@ -863,14 +953,21 @@ func parsePrivateKeyHex(s string) ([32]byte, error) {
 // threads*chunkSteps keys but can NEVER skip a key. The stored next_private_key
 // is the first key of that frontier chunk, and total_keys is the keys checked up
 // to it (endoFactor per linear key).
-func writeCheckpoint(path string, scan *scanState, progress []workerProgress, activeThreads int) error {
+// cpuFrontierChunk computes the CPU-mode frontier: the lowest chunk any active
+// worker is still processing (workers hold their chunk until fully walked), or
+// the cursor if none is below it. This is the historic min-over-workers rule.
+func cpuFrontierChunk(scan *scanState, progress []workerProgress) uint64 {
 	frontier := atomic.LoadUint64(&scan.nextChunk) // upper bound before any claim
 	for i := range progress {
 		if cc := atomic.LoadUint64(&progress[i].currentChunk); cc < frontier {
 			frontier = cc
 		}
 	}
-	frontierOffset := frontier * chunkSteps // linear keys fully covered
+	return frontier
+}
+
+func writeCheckpoint(path string, frontierChunk uint64, activeThreads int) error {
+	frontierOffset := frontierChunk * chunkSteps // linear keys fully covered
 
 	cp := checkpointFile{
 		Version:        checkpointVersion,
@@ -1033,6 +1130,271 @@ func worker(id int, wg *sync.WaitGroup, targets hash160Set, matchChan chan<- Mat
 }
 
 // ============================================================================
+// GPU PIPELINE: Metal Hash160 offload (producer/consumer with CPU EC walk)
+// ============================================================================
+//
+// Measured split of the CPU hot path: hashing (SHA-256 + RIPEMD-160) is ~80% of
+// the per-key cost, the secp256k1 walk ~20%. The GPU pipeline keeps the elite
+// CPU EC walk and moves only the Hash160 to the Metal device:
+//
+//   - N producer goroutines each claim a contiguous range of chunks, run the
+//     batched affine walk to fill a large SHARED (unified-memory) Metal buffer
+//     with compressed pubkeys (zero copy), dispatch one GPU Hash160 over the
+//     whole buffer, then scan the 20-byte digests against the target set.
+//   - One dispatch spans gpuChunksPerDispatch chunks so the GPU runs at a batch
+//     size that saturates it (a single 98k-key chunk is too small). While one
+//     producer waits on the GPU, the others keep the CPU cores filling buffers,
+//     so CPU EC and GPU hashing overlap.
+//   - The frontierTracker keeps the gap-free resume guarantee under the
+//     out-of-order completion this parallelism creates.
+
+// gpuSubBatchKeys is the EC walk's natural batch (endoFactor keys per step over
+// keyBatchSize steps); gpuSubBatchBytes is its serialized pubkey footprint. A
+// chunk is chunkBatches such sub-batches.
+const (
+	gpuSubBatchKeys  = endoFactor * keyBatchSize
+	gpuSubBatchBytes = gpuSubBatchKeys * pubStride
+)
+
+// newKeyStreamForGPU builds a keyStream without its own pubBuf: the GPU producer
+// repoints ks.pubBuf at slices of the shared Metal buffer before each fill.
+func newKeyStreamForGPU() *keyStream {
+	return &keyStream{
+		dx:       make([]field.Val, keyBatchSize),
+		pre:      make([]field.Val, keyBatchSize),
+		degenIdx: make([]int, 0, 4),
+	}
+}
+
+// gpuProducer claims chunk ranges, fills shared pubkey buffers via the EC walk,
+// dispatches the GPU Hash160, scans the results, and advances the frontier. It
+// returns when stop is closed (at a dispatch boundary).
+func gpuProducer(id int, wg *sync.WaitGroup, hasher *gpumetal.Hasher, chunksPerDispatch int, targets hash160Set, matchChan chan<- MatchResult, counter *uint64, tracker *frontierTracker, stop <-chan struct{}) {
+	defer wg.Done()
+
+	subBatchesPerChunk := chunkBatches
+	subBatches := chunksPerDispatch * subBatchesPerChunk
+	count := subBatches * gpuSubBatchKeys
+
+	in, err := hasher.NewBuffer(subBatches * gpuSubBatchBytes)
+	if err != nil {
+		log.Printf("GPU producer %d: input buffer alloc failed: %s", id, err)
+		return
+	}
+	defer in.Free()
+	out, err := hasher.NewBuffer(count * 20)
+	if err != nil {
+		log.Printf("GPU producer %d: output buffer alloc failed: %s", id, err)
+		return
+	}
+	defer out.Free()
+	inBytes := in.Bytes()
+	outBytes := out.Bytes()
+
+	ks := newKeyStreamForGPU()
+	var h160 [20]byte
+	dispatchNum := 0
+
+	for {
+		select {
+		case <-stop:
+			return
+		default:
+		}
+
+		// Claim a contiguous range and publish nothing until it completes: the
+		// frontier only advances past fully-scanned ranges (see frontierTracker).
+		startChunk := tracker.claim(uint64(chunksPerDispatch))
+
+		// Fill: walk each chunk straight into its slice of the shared buffer.
+		for k := 0; k < chunksPerDispatch; k++ {
+			ks.setBase(chunkBaseSeed(startChunk + uint64(k)))
+			for b := 0; b < subBatchesPerChunk; b++ {
+				sub := k*subBatchesPerChunk + b
+				ks.pubBuf = inBytes[sub*gpuSubBatchBytes : sub*gpuSubBatchBytes+gpuSubBatchBytes]
+				ks.fillPubkeysSteps(keyBatchSize)
+			}
+		}
+
+		// Hash the whole buffer on the GPU (blocks this producer; others fill).
+		if err := hasher.Hash160(in, out, count, pubStride); err != nil {
+			log.Fatalf("GPU dispatch failed: %s — aborting (a silent hash error would miss matches)", err)
+		}
+		atomic.AddUint64(counter, uint64(count))
+
+		// Worker 0 publishes a sample (gid 0 = chunk startChunk, variant 0).
+		if id == 0 && dispatchNum%8 == 0 {
+			copy(h160[:], outBytes[:20])
+			publishCheckedSample(privateKeyForVariantFromBase(chunkBaseSeed(startChunk), 0, 0), h160)
+		}
+		dispatchNum++
+
+		// Scan: O(1) target lookup per digest; reconstruct keys only on a hit.
+		for gid := 0; gid < count; gid++ {
+			off := gid * 20
+			copy(h160[:], outBytes[off:off+20])
+			if _, exists := targets[h160]; exists {
+				sub := gid / gpuSubBatchKeys
+				k := sub / subBatchesPerChunk
+				b := sub % subBatchesPerChunk
+				rem := gid % gpuSubBatchKeys
+				v := rem / keyBatchSize
+				p := rem % keyBatchSize
+				c := startChunk + uint64(k)
+				offset := uint64(b*keyBatchSize + p)
+				privateKey := privateKeyForVariantFromBase(chunkBaseSeed(c), offset, v)
+				publicAddress := encodeP2PKH(h160)
+				match := MatchResult{privateKey: privateKey, address: publicAddress}
+				printMatchResult(match)
+				matchChan <- match
+			}
+		}
+
+		tracker.complete(startChunk, uint64(chunksPerDispatch))
+	}
+}
+
+// runGPU starts the GPU producer pool and blocks until all producers exit.
+func runGPU(hasher *gpumetal.Hasher, numProducers, chunksPerDispatch int, targets hash160Set, matchChan chan<- MatchResult, counter *uint64, tracker *frontierTracker, stop <-chan struct{}) {
+	var wg sync.WaitGroup
+	for i := 0; i < numProducers; i++ {
+		wg.Add(1)
+		go gpuProducer(i, &wg, hasher, chunksPerDispatch, targets, matchChan, counter, tracker, stop)
+	}
+	wg.Wait()
+}
+
+// gpuSelfTest hashes real secp256k1 public keys on the GPU and checks every
+// digest against btcutil.Hash160. A mismatch means the device/kernel is not
+// bit-correct here, so the program must refuse the GPU path rather than silently
+// miss every match for the whole run (same contract as verifyHashPipeline).
+func gpuSelfTest(hasher *gpumetal.Hasher) error {
+	const n = 4096
+	in, err := hasher.NewBuffer(n * pubStride)
+	if err != nil {
+		return err
+	}
+	defer in.Free()
+	out, err := hasher.NewBuffer(n * 20)
+	if err != nil {
+		return err
+	}
+	defer out.Free()
+
+	src := in.Bytes()
+	for i := 0; i < n; i++ {
+		var priv [32]byte
+		binary.BigEndian.PutUint64(priv[24:], uint64(i+1))
+		_, pub := btcec.PrivKeyFromBytes(priv[:])
+		copy(src[i*pubStride:i*pubStride+33], pub.SerializeCompressed())
+	}
+	if err := hasher.Hash160(in, out, n, pubStride); err != nil {
+		return err
+	}
+	res := out.Bytes()
+	for i := 0; i < n; i++ {
+		var got, want [20]byte
+		copy(got[:], res[i*20:i*20+20])
+		copy(want[:], btcutil.Hash160(src[i*pubStride:i*pubStride+33]))
+		if got != want {
+			return fmt.Errorf("GPU Hash160 mismatch at key %d: got %x want %x", i+1, got, want)
+		}
+	}
+	return nil
+}
+
+// calibrateCPUKeysPerSec measures the full CPU hot path (EC walk + fused
+// multi-buffer HASH160, no target scan) across `threads` workers for d.
+func calibrateCPUKeysPerSec(d time.Duration, threads int) float64 {
+	var counter uint64
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < threads; i++ {
+		wg.Add(1)
+		go func(seedByte byte) {
+			defer wg.Done()
+			var seed [32]byte
+			seed[0] = seedByte
+			seed[31] = 0x01
+			ks := newKeyStreamFromSeed(seed)
+			hashes := make([][20]byte, endoFactor*keyBatchSize)
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				ks.nextBatch(hashes)
+				atomic.AddUint64(&counter, uint64(len(hashes)))
+			}
+		}(byte(i + 1))
+	}
+	start := time.Now()
+	time.Sleep(d)
+	close(stop)
+	wg.Wait()
+	return float64(atomic.LoadUint64(&counter)) / time.Since(start).Seconds()
+}
+
+// calibrateGPUKeysPerSec measures the GPU pipeline (EC fill + Metal Hash160, no
+// target scan) across `producers` producers for d. Producers walk disjoint
+// throwaway chunk ranges so the measurement does not touch the real frontier.
+func calibrateGPUKeysPerSec(d time.Duration, hasher *gpumetal.Hasher, producers, chunksPerDispatch int) float64 {
+	var counter uint64
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	subBatchesPerChunk := chunkBatches
+	subBatches := chunksPerDispatch * subBatchesPerChunk
+	count := subBatches * gpuSubBatchKeys
+
+	for i := 0; i < producers; i++ {
+		wg.Add(1)
+		go func(pid int) {
+			defer wg.Done()
+			in, err := hasher.NewBuffer(subBatches * gpuSubBatchBytes)
+			if err != nil {
+				return
+			}
+			defer in.Free()
+			out, err := hasher.NewBuffer(count * 20)
+			if err != nil {
+				return
+			}
+			defer out.Free()
+			inBytes := in.Bytes()
+			ks := newKeyStreamForGPU()
+			chunk := uint64(pid) * uint64(chunksPerDispatch)
+			stride := uint64(producers) * uint64(chunksPerDispatch)
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				for k := 0; k < chunksPerDispatch; k++ {
+					ks.setBase(chunkBaseSeed(chunk + uint64(k)))
+					for b := 0; b < subBatchesPerChunk; b++ {
+						sub := k*subBatchesPerChunk + b
+						ks.pubBuf = inBytes[sub*gpuSubBatchBytes : sub*gpuSubBatchBytes+gpuSubBatchBytes]
+						ks.fillPubkeysSteps(keyBatchSize)
+					}
+				}
+				if err := hasher.Hash160(in, out, count, pubStride); err != nil {
+					return
+				}
+				atomic.AddUint64(&counter, uint64(count))
+				chunk += stride
+			}
+		}(i)
+	}
+	start := time.Now()
+	time.Sleep(d)
+	close(stop)
+	wg.Wait()
+	return float64(atomic.LoadUint64(&counter)) / time.Since(start).Seconds()
+}
+
+// ============================================================================
 // FILE I/O: Asynchronous Match Writing
 // ============================================================================
 
@@ -1149,7 +1511,7 @@ Thread Safety:
   - Uses atomic.LoadUint64() for thread-safe counter reading
   - No locks required (read-only access to shared counter)
 */
-func statsReporter(counter *uint64, startTime time.Time, scan *scanState, progress []workerProgress, checkpointPath string, baseTotal uint64, activeThreads int) {
+func statsReporter(counter *uint64, startTime time.Time, frontierChunk func() uint64, checkpointPath string, baseTotal uint64, activeThreads int) {
 	// Create ticker that fires every 10 seconds (one sample line per interval)
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop() // Clean up ticker when function returns
@@ -1184,7 +1546,7 @@ func statsReporter(counter *uint64, startTime time.Time, scan *scanState, progre
 
 		// Persist resumable progress on the same 10s cadence as the stats line.
 		if checkpointPath != "" {
-			if err := writeCheckpoint(checkpointPath, scan, progress, activeThreads); err != nil {
+			if err := writeCheckpoint(checkpointPath, frontierChunk(), activeThreads); err != nil {
 				log.Printf("Failed to write checkpoint: %s", err)
 			}
 		}
@@ -1268,6 +1630,7 @@ func main() {
 
 	checkpointPath := flag.String("checkpoint", "checkpoint.json", "JSON file where progress is saved every 10s")
 	resume := flag.Bool("resume", false, "continue the scan from the checkpoint frontier instead of starting fresh from key 1")
+	gpuMode := flag.String("gpu", "auto", "GPU (Apple Metal) Hash160 offload: auto (use if faster), on (force), off (CPU only)")
 	flag.Usage = func() {
 		fmt.Println("Usage: ./bitcoin-wallet-bruteforce-offline [--checkpoint=path] [--resume] <threads> <output-file.txt> <btc-address-file.txt>")
 		fmt.Println()
@@ -1279,6 +1642,7 @@ func main() {
 		fmt.Println("Flags (must come BEFORE the positional arguments):")
 		fmt.Println("  --checkpoint=path    - JSON checkpoint file (default: checkpoint.json)")
 		fmt.Println("  --resume             - Continue from the checkpoint instead of starting fresh")
+		fmt.Println("  --gpu=auto|on|off    - Apple Metal Hash160 offload (default: auto; on=force, off=CPU only)")
 		fmt.Println()
 		fmt.Println("Examples:")
 		fmt.Println("  ./bitcoin-wallet-bruteforce-offline 8 matches.txt attack-addresses-p2pkh.txt")
@@ -1377,25 +1741,33 @@ func main() {
 		fmt.Printf("  Threads now  : %d — thread-count agnostic, so no key is skipped.\n\n", numThreads)
 	}
 
-	// One keyStream per worker (owns the scratch buffers; rebased to each claimed
-	// chunk inside the worker) plus a per-worker progress slot feeding the
-	// checkpoint frontier. Until a worker claims its first chunk, its published
-	// position equals the start, so the initial checkpoint reflects the start.
-	streams := make([]*keyStream, numThreads)
-	progress := make([]workerProgress, numThreads)
-	for i := 0; i < numThreads; i++ {
-		streams[i] = newKeyStreamFromSeed(startKeySeed)
-		progress[i].currentChunk = scan.nextChunk
+	// ========================================================================
+	// BACKEND SELECTION (GPU Metal Hash160 offload vs CPU)
+	// ========================================================================
+
+	// GPU pipeline tunables (overridable for measurement / constrained RAM).
+	gpuProducers := runtime.NumCPU()
+	if v := os.Getenv("BTC_GPU_PRODUCERS"); v != "" {
+		if n, perr := strconv.Atoi(v); perr == nil && n > 0 {
+			gpuProducers = n
+		}
+	}
+	gpuChunksPerDispatch := 6 // ~590k keys/dispatch: near the GPU saturation knee
+	if v := os.Getenv("BTC_GPU_CHUNKS"); v != "" {
+		if n, perr := strconv.Atoi(v); perr == nil && n > 0 {
+			gpuChunksPerDispatch = n
+		}
 	}
 
-	// Write an initial checkpoint so the file exists and reflects the starting
-	// frontier immediately, even before the first 10s tick.
-	if err := writeCheckpoint(*checkpointPath, scan, progress, numThreads); err != nil {
-		log.Printf("Failed to write initial checkpoint: %s", err)
+	useGPU, hasher := selectBackend(*gpuMode, numThreads, gpuProducers, gpuChunksPerDispatch)
+	if useGPU {
+		fmt.Printf("Active backend: GPU — %s (Apple Metal) | %d producer(s) x %d chunks/dispatch = %d keys/dispatch\n",
+			hasher.Name(), gpuProducers, gpuChunksPerDispatch, gpuChunksPerDispatch*chunkBatches*endoFactor*keyBatchSize)
 	} else {
-		fmt.Printf("Checkpoint: %s | systematic scan from key 1 | chunk = %d keys | saved every 10s\n\n",
-			*checkpointPath, uint64(chunkSteps)*endoFactor)
+		fmt.Printf("Active backend: CPU — multi-buffer HASH160 | %d worker thread(s)\n", numThreads)
 	}
+	fmt.Printf("Checkpoint: %s | systematic scan from key 1 | chunk = %d keys | saved every 10s\n\n",
+		*checkpointPath, uint64(chunkSteps)*endoFactor)
 
 	// ========================================================================
 	// SHARED STATE INITIALIZATION
@@ -1404,16 +1776,16 @@ func main() {
 	// Atomic counter for keys generated THIS run (shared across all workers).
 	var counter uint64
 
-	// Buffered channel for sending matches from workers to file writer
+	// Buffered channel for sending matches from workers/producers to file writer
 	// Buffer size: 100 (prevents blocking if matches found in bursts)
 	matchChan := make(chan MatchResult, 100)
 
 	// WaitGroups for coordinating goroutine shutdown
-	var workerWg sync.WaitGroup // Tracks worker goroutines
+	var workerWg sync.WaitGroup // Tracks CPU worker goroutines
 	var writerWg sync.WaitGroup // Tracks writer goroutine
 
-	// stop is closed on SIGINT/SIGTERM so workers exit at a batch boundary,
-	// letting main write one final, fully up-to-date checkpoint.
+	// stop is closed on SIGINT/SIGTERM so workers/producers exit at a batch
+	// boundary, letting main write one final, fully up-to-date checkpoint.
 	stop := make(chan struct{})
 
 	// ========================================================================
@@ -1432,42 +1804,119 @@ func main() {
 		os.Exit(1)
 	}()
 
-	// ========================================================================
-	// GOROUTINE STARTUP
-	// ========================================================================
-
-	// Start match writer goroutine (handles file I/O asynchronously)
+	// Start match writer goroutine (handles file I/O asynchronously).
 	writerWg.Add(1)
 	go matchWriter(matchChan, outputFile, &writerWg)
 
-	// Start stats reporter goroutine (metrics + 10s checkpoint writes)
 	startTime := time.Now()
-	go statsReporter(&counter, startTime, scan, progress, *checkpointPath, baseTotal, numThreads)
-
-	// Start worker pool (brute force address generation)
 	fmt.Printf("Starting brute force...\n")
 	fmt.Printf("════════════════════════════════════════════════════════════\n\n")
-	for i := 0; i < numThreads; i++ {
-		workerWg.Add(1)
-		go worker(i, &workerWg, targets, matchChan, &counter, streams[i], scan, &progress[i], stop)
+
+	// frontierChunk yields the resume-safe scan frontier; its source differs by
+	// mode (CPU: min chunk over workers; GPU: the out-of-order frontierTracker).
+	var frontierChunk func() uint64
+
+	if useGPU {
+		// GPU mode: a frontierTracker hands contiguous chunk ranges to the
+		// producers and advances the gap-free frontier as ranges complete out
+		// of order. All cores act as EC producers feeding one GPU.
+		tracker := newFrontierTracker(scan.nextChunk)
+		frontierChunk = tracker.frontierChunk
+		if err := writeCheckpoint(*checkpointPath, frontierChunk(), numThreads); err != nil {
+			log.Printf("Failed to write initial checkpoint: %s", err)
+		}
+		go statsReporter(&counter, startTime, frontierChunk, *checkpointPath, baseTotal, numThreads)
+		runGPU(hasher, gpuProducers, gpuChunksPerDispatch, targets, matchChan, &counter, tracker, stop)
+		hasher.Close()
+	} else {
+		// CPU mode: one keyStream per worker (owns its scratch buffers; rebased
+		// to each claimed chunk) plus a per-worker progress slot feeding the
+		// checkpoint frontier. Until a worker claims its first chunk, its
+		// published position equals the start, so the initial checkpoint
+		// reflects the start.
+		streams := make([]*keyStream, numThreads)
+		progress := make([]workerProgress, numThreads)
+		for i := 0; i < numThreads; i++ {
+			streams[i] = newKeyStreamFromSeed(startKeySeed)
+			progress[i].currentChunk = scan.nextChunk
+		}
+		frontierChunk = func() uint64 { return cpuFrontierChunk(scan, progress) }
+		if err := writeCheckpoint(*checkpointPath, frontierChunk(), numThreads); err != nil {
+			log.Printf("Failed to write initial checkpoint: %s", err)
+		}
+		go statsReporter(&counter, startTime, frontierChunk, *checkpointPath, baseTotal, numThreads)
+		for i := 0; i < numThreads; i++ {
+			workerWg.Add(1)
+			go worker(i, &workerWg, targets, matchChan, &counter, streams[i], scan, &progress[i], stop)
+		}
+		// Runs until interrupted: SIGINT/SIGTERM closes stop, workers exit at the
+		// next batch boundary, and the WaitGroup unblocks.
+		workerWg.Wait()
 	}
-
-	// ========================================================================
-	// MAIN LOOP (BLOCKING)
-	// ========================================================================
-
-	// Runs until interrupted: SIGINT/SIGTERM closes stop, workers exit at the
-	// next batch boundary, and the WaitGroup unblocks.
-	workerWg.Wait()
 
 	// Close match channel to signal writer to finish, then wait for it to drain.
 	close(matchChan)
 	writerWg.Wait()
 
 	// Final checkpoint capturing the exact frontier (graceful shutdown).
-	if err := writeCheckpoint(*checkpointPath, scan, progress, numThreads); err != nil {
+	if err := writeCheckpoint(*checkpointPath, frontierChunk(), numThreads); err != nil {
 		log.Printf("Failed to write final checkpoint: %s", err)
 	} else {
 		fmt.Printf("Final checkpoint saved to %s\n", *checkpointPath)
 	}
+}
+
+// selectBackend decides whether to use the GPU (Apple Metal) Hash160 offload or
+// the CPU hot path, honoring --gpu=auto|on|off. It returns the chosen hasher
+// (nil for CPU). In auto mode it runs the bit-exact self-test and a short
+// calibration and picks the faster backend, guaranteeing no regression below
+// the CPU path. In on mode any failure is fatal; in off mode the GPU is skipped.
+func selectBackend(mode string, numThreads, gpuProducers, gpuChunksPerDispatch int) (bool, *gpumetal.Hasher) {
+	if mode == "off" {
+		return false, nil
+	}
+	if !gpumetal.Available() {
+		if mode == "on" {
+			log.Fatalf("--gpu=on but this build has no Metal support (needs native darwin + cgo)")
+		}
+		return false, nil
+	}
+
+	hasher, err := gpumetal.New()
+	if err != nil {
+		if mode == "on" {
+			log.Fatalf("--gpu=on but Metal initialization failed: %s", err)
+		}
+		log.Printf("GPU unavailable (%s); using CPU", err)
+		return false, nil
+	}
+
+	// Correctness gate: refuse a GPU that is not bit-exact, exactly like the CPU
+	// verifyHashPipeline — a silent hash error would miss every real match.
+	if err := gpuSelfTest(hasher); err != nil {
+		hasher.Close()
+		if mode == "on" {
+			log.Fatalf("--gpu=on but GPU self-test failed: %s", err)
+		}
+		log.Printf("GPU self-test failed (%s); using CPU", err)
+		return false, nil
+	}
+	fmt.Printf("GPU self-test: PASS — bit-exact vs btcutil.Hash160 on %s\n", hasher.Name())
+
+	if mode == "on" {
+		return true, hasher
+	}
+
+	// auto: measure both backends briefly and choose the faster one.
+	fmt.Printf("Calibrating backends (~0.6s)...\n")
+	gpuRate := calibrateGPUKeysPerSec(300*time.Millisecond, hasher, gpuProducers, gpuChunksPerDispatch)
+	cpuRate := calibrateCPUKeysPerSec(300*time.Millisecond, numThreads)
+	fmt.Printf("  GPU pipeline : %6.1f M keys/sec\n", gpuRate/1e6)
+	fmt.Printf("  CPU pipeline : %6.1f M keys/sec\n", cpuRate/1e6)
+	if gpuRate >= cpuRate {
+		return true, hasher
+	}
+	hasher.Close()
+	fmt.Printf("  -> CPU is faster on this machine; using CPU.\n")
+	return false, nil
 }
