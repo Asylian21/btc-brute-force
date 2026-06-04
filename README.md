@@ -40,7 +40,7 @@ The point is to make the impossible measurable. That is useful science, and a us
 - **Offline Bitcoin address-collision lab** for legacy mainnet P2PKH addresses (`1...`) with no RPC, API, wallet import, or network access.
 - **Optimized Go hot path** using batched secp256k1 affine walks, GLV endomorphism, point negation, Montgomery batch inversion, raw Hash160 lookup, and allocation-free worker buffers.
 - **Fused multi-buffer HASH160 pipeline** with vectorized SHA-256 (`sha256mb`) feeding multi-buffer RIPEMD-160 (`ripemd160-asm`) for realistic cryptographic throughput measurements.
-- **Apple Metal GPU acceleration** (Apple Silicon): auto-enabled, bit-exact GPU Hash160 offload with zero-copy unified-memory buffers and a CPU/GPU producer–consumer pipeline — ~120M keys/sec on an M3 (~2.7–2.9x the CPU path), with transparent CPU fallback and startup calibration so it never regresses.
+- **Apple Metal GPU acceleration** (Apple Silicon): auto-enabled hybrid pipeline — the CPU runs the batched secp256k1 walk while the GPU does on-device GLV+negation expansion, six-way Hash160, and a Bloom-filter membership test with atomic candidate compaction, all bit-exact and zero-copy over unified memory — ~220–240M keys/sec on an M3 (~4.5–5x the CPU path), with transparent CPU fallback and startup calibration so it never regresses.
 - **Systematic resumable scan** from private key `1`, with checkpointed scan-frontier state that works across thread-count changes (and across CPU/GPU modes).
 - **Honest security education** showing why Bitcoin brute force and broad address-collision search remain computationally infeasible even after serious optimization.
 - **Reproducible benchmarks** for Go, secp256k1, SHA-256, RIPEMD-160, Hash160, Base58, and Bitcoin address-generation performance.
@@ -102,10 +102,11 @@ The address file must contain one legacy mainnet P2PKH address per line, meaning
 #### GPU acceleration (Apple Silicon)
 
 On a Mac with Apple Silicon, `make build` produces a Metal-enabled binary and
-the GPU Hash160 offload is **auto-enabled** — on startup the program runs a
-bit-exact self-test against `btcutil.Hash160` and a short calibration, then
-picks the faster backend (so it never runs slower than the CPU path). Control it
-with `--gpu`:
+the GPU pipeline is **auto-enabled** — the CPU feeds base pubkeys to the device,
+which expands the six GLV+negation variants, hashes them, and Bloom-filters them
+on-chip. On startup the program runs a bit-exact self-test (Hash160 + on-device
+GLV expansion vs `btcutil`) and a short calibration, then picks the faster
+backend (so it never runs slower than the CPU path). Control it with `--gpu`:
 
 ```bash
 ./bin/btc-brute-force --gpu=auto 8 matches.txt addresses.txt   # default: GPU if faster
@@ -116,7 +117,7 @@ with `--gpu`:
 Requirements: macOS on Apple Silicon, built natively with cgo (the default for
 `make build` / `make bench-gpu`). Other platforms — and the `make build-cpu`
 (`-tags=nometal`) build — transparently use the CPU path. Tune the pipeline with
-`BTC_GPU_PRODUCERS` and `BTC_GPU_CHUNKS` if needed. See [BENCHMARKS.md](BENCHMARKS.md#gpu-apple-metal-hash160-offload).
+`BTC_GPU_PRODUCERS` and `BTC_GPU_CHUNKS` if needed. See [BENCHMARKS.md](BENCHMARKS.md#gpu-apple-metal-pipeline-on-device-glv--hash160--bloom).
 
 For a custom thread count in the demo, pass `THREADS`:
 
@@ -130,7 +131,7 @@ Download binaries from [Releases](https://github.com/Asylian21/btc-brute-force/r
 
 - Linux (AMD64, ARM64)
 - Windows (AMD64)
-- macOS (Intel, Apple Silicon — the Apple Silicon build is compiled natively with cgo and ships the **Metal GPU** Hash160 path; Intel is CPU-only)
+- macOS (Intel, Apple Silicon — the Apple Silicon build is compiled natively with cgo and ships the **Metal GPU** pipeline (on-device GLV + Hash160 + Bloom); Intel is CPU-only)
 
 **Example (Linux):**
 
@@ -200,11 +201,13 @@ clean `Ctrl+C`):
   "threads": 8,
   "chunk_steps": 16384,
   "key_batch_size": 1024,
+  "start_key": "0000000000000000000000000000000000000000000000000000000000000001",
   "next_private_key": "0000000000000000000000000000000000000000000000000000000000000001",
   "total_keys": 0
 }
 ```
 
+- **`start_key`** — the base of the scan window (linear offset `0`). The scan covers a contiguous `2^64`-key window anchored here. Omit it to anchor the window at `next_private_key` (see custom start below).
 - **`next_private_key`** — the frontier: every key below it has been checked; the scan resumes here.
 - **`total_keys`** — keys checked up to the frontier (`endoFactor` per linear key); derived from the frontier, so it only moves forward.
 - **Default file:** `checkpoint.json` in the working directory (override with `--checkpoint=path`).
@@ -218,6 +221,26 @@ btc-brute-force 8 matches.txt addresses.txt
 # Later, continue exactly where it stopped — with ANY thread count
 btc-brute-force --resume 4 matches.txt addresses.txt
 ```
+
+### Starting at a custom key
+
+By default a fresh scan begins at key `1`. To begin somewhere else on the curve,
+pass a full 64-hex-character (32-byte) private key with `--start-key`:
+
+```bash
+# Fresh scan whose window begins at a chosen key (must be 64 hex chars, in [1, N))
+btc-brute-force --start-key=A7F31C92B04D0210000000000000000000000000000000000000000000000001 8 matches.txt addresses.txt
+```
+
+You can also hand-write a minimal checkpoint that starts the scan wherever you
+want and resume from it — just set `next_private_key` (no `start_key` needed) and
+add `--resume`. The window is anchored at that key:
+
+```json
+{ "version": 2, "next_private_key": "A7F31C92B04D0210000000000000000000000000000000000000000000000001" }
+```
+
+`--start-key` is ignored with `--resume` (the checkpoint's own start key wins).
 
 ### Changing the thread count between resumes
 
@@ -324,7 +347,7 @@ With roughly 50 million funded addresses and 2^160 possible Hash160 values, the 
 
 ### Can GPUs speed this up?
 
-Yes — and this project does it on Apple Silicon. The Metal backend offloads the Hash160 (the ~80% hashing bottleneck) to the GPU with zero-copy unified-memory buffers, reaching ~120M keys/sec on an M3 (~2.7–2.9x the CPU path). See [GPU acceleration](#gpu-acceleration-apple-silicon) and [BENCHMARKS.md](BENCHMARKS.md#gpu-apple-metal-hash160-offload). GPUs add serious throughput but do **not** change the scale of the search space: even at billions of keys/sec, the answer is still measured in absurd cosmic time.
+Yes — and this project does it on Apple Silicon. The Metal backend runs a hybrid pipeline: the CPU walks secp256k1 and the GPU does the GLV+negation expansion, the six-way Hash160 (the ~80% hashing bottleneck), and a Bloom-filter membership test on-chip with zero-copy unified-memory buffers, reaching ~220–240M keys/sec on an M3 (~4.5–5x the CPU path). See [GPU acceleration](#gpu-acceleration-apple-silicon) and [BENCHMARKS.md](BENCHMARKS.md#gpu-apple-metal-pipeline-on-device-glv--hash160--bloom). GPUs add serious throughput but do **not** change the scale of the search space: even at billions of keys/sec, the answer is still measured in absurd cosmic time.
 
 ### What if quantum computers break this?
 
