@@ -40,3 +40,45 @@ func (b *Buffer) Free() {}
 
 // Hash160 always fails in the stub build.
 func (h *Hasher) Hash160(in, out *Buffer, count, stride int) error { return errUnavailable }
+
+// Hash160Filter always fails in the stub build.
+func (h *Hasher) Hash160Filter(in, bloom, mcount, mdata *Buffer, count, stride int, mask, k uint32) error {
+	return errUnavailable
+}
+
+// GLVFilter always fails in the stub build.
+func (h *Hasher) GLVFilter(in, bloom, mcount, mdata *Buffer, count, stride int, mask, k uint32) error {
+	return errUnavailable
+}
+
+// ECWalkBatch mirrors the darwin constant so callers compile unchanged.
+const ECWalkBatch = 16
+
+// GLVWalk always fails in the stub build.
+func (h *Hasher) GLVWalk(starts, txX, txY, bloom, mcount, mdata *Buffer, gthreads int, mask, k uint32) error {
+	return errUnavailable
+}
+
+// Stream is an empty placeholder mirroring the darwin type's method set.
+type Stream struct{}
+
+// NewStream always fails in the stub build.
+func (h *Hasher) NewStream() (*Stream, error) { return nil, errUnavailable }
+
+// Free is a no-op in the stub build.
+func (s *Stream) Free() {}
+
+// Hash160FilterStream always fails in the stub build.
+func (s *Stream) Hash160FilterStream(in, bloom, mcount, mdata *Buffer, count, stride int, mask, k uint32) error {
+	return errUnavailable
+}
+
+// GLVFilterStream always fails in the stub build.
+func (s *Stream) GLVFilterStream(in, bloom, mcount, mdata *Buffer, count, stride int, mask, k uint32) error {
+	return errUnavailable
+}
+
+// GLVWalkStream always fails in the stub build.
+func (s *Stream) GLVWalkStream(starts, txX, txY, bloom, mcount, mdata *Buffer, gthreads int, mask, k uint32) error {
+	return errUnavailable
+}
