@@ -85,7 +85,7 @@ example-checkpoint.json
 example-checkpoint.json.tmp
 chekpoint-me.json
 checkpoint-me.json
-*.checkpoint.json
+checkpoint.json
 
 # ============================================================================
 # Operating System Files

@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "updated_at": "2026-06-02T18:50:59Z",
-  "threads": 8,
-  "chunk_steps": 16384,
-  "key_batch_size": 1024,
-  "next_private_key": "000000000000000000000000000000000000000000000000000000045c8c0001",
-  "total_keys": 112395288576
-}
