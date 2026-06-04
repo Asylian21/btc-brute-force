@@ -186,6 +186,49 @@ func TestKeyStreamContinuity(t *testing.T) {
 	}
 }
 
+// TestFillBasePubkeysSteps proves the on-GPU GLV path's base-only fill
+// (fillBasePubkeysSteps) writes exactly the variant-0 (base point) compressed
+// pubkey that the full fill (fillPubkeysSteps) writes to slot 0*m+p. Because
+// fillPubkeysSteps is checked bit-exact against an independent btcec/btcutil
+// reference (TestKeyStreamMatchesReference), this transitively pins the base fill
+// the GPU producer relies on — without needing a GPU — and confirms the base
+// point carries between batches identically. A divergence would make the
+// GPU-derived GLV variants disagree with the CPU key reconstruction.
+func TestFillBasePubkeysSteps(t *testing.T) {
+	var seed [32]byte
+	seed[0] = 0x5e
+	seed[19] = 0x88
+	seed[31] = 0x21
+
+	const m = keyBatchSize
+
+	full := newKeyStreamForGPU()
+	full.setBase(seed)
+	fullBuf := make([]byte, endoFactor*m*pubStride)
+	full.pubBuf = fullBuf
+
+	base := newKeyStreamForGPU()
+	base.setBase(seed)
+	baseBuf := make([]byte, m*pubStride)
+	base.pubBuf = baseBuf
+
+	// Two batches, to also exercise the base-point carry (the j==m-1 advance).
+	for batch := 0; batch < 2; batch++ {
+		startFull := full.fillPubkeysSteps(m)
+		startBase := base.fillBasePubkeysSteps(m)
+		if startFull != startBase {
+			t.Fatalf("batch %d: start offset mismatch: full %d base %d", batch, startFull, startBase)
+		}
+		for p := 0; p < m; p++ {
+			want := fullBuf[p*pubStride : p*pubStride+33] // variant 0 slot = 0*m+p
+			got := baseBuf[p*pubStride : p*pubStride+33]
+			if !bytes.Equal(got, want) {
+				t.Fatalf("batch %d step %d: base pubkey %x != full variant-0 pubkey %x", batch, p, got, want)
+			}
+		}
+	}
+}
+
 // BenchmarkKeyStreamPerKey measures the amortized per-key cost of the production
 // hot path (point addition + endomorphism + batched inversion + Hash160). It
 // counts every key actually produced — identity AND endomorphism — so ns/op is
