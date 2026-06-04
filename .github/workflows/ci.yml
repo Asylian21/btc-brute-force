@@ -64,7 +64,7 @@ jobs:
       - name: Build native binary (CGO + Metal)
         env:
           CGO_ENABLED: 1
-        run: go build -ldflags="-s -w -linkmode=external" -o /tmp/btc-brute-force ./bitcoin-wallet-bruteforce-offline.go
+        run: go build -ldflags="-s -w -linkmode=external" -o /tmp/btc-brute-force .
 
       - name: Verify code signature
         run: codesign -v -vvv /tmp/btc-brute-force
@@ -72,8 +72,20 @@ jobs:
       - name: Build CPU-only fallback (nometal stub)
         run: go build -tags=nometal -o /dev/null ./...
 
-      - name: Metal Hash160 bit-exact + benchmark (skips if runner has no GPU)
-        run: go test -ldflags="-linkmode=external" -run 'TestHash160' ./gpu/metal/
+      - name: Metal device differential tests (field, hash160, GLV, EC add/walk)
+        # Whole gpu/metal suite: secp256k1 Fp ops vs math/big, Hash160 vs btcutil,
+        # affine EC add, and the GLV filter — all skip gracefully if the runner
+        # exposes no Metal device. External linkmode avoids the macOS internal-link
+        # LC_UUID launch error for the (cgo) test binary.
+        run: go test -ldflags="-linkmode=external" ./gpu/metal/
+
+      - name: Metal production pipeline tests (gate, end-to-end, calibration, walk)
+        # Main-package on-device tests: the backend self-test gate, the hybrid
+        # end-to-end planted-target run through runGPU, the --gpu=auto calibration
+        # sanity, the GLV filter, and the experimental on-GPU EC walk + its
+        # self-test. -short skips the long throughput sweeps (TestGPUProductionSweep,
+        # TestGPUWalkDispatchThroughput) while keeping every correctness test.
+        run: go test -short -ldflags="-linkmode=external" -run 'TestGPU' .
 
   lint:
     name: Lint
