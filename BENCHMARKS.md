@@ -63,46 +63,88 @@ BenchmarkHash160-8                 	20302436	       298.2 ns/op	     296 B/op	  
 BenchmarkBase58Encode-8            	93246190	        64.47 ns/op	     144 B/op	       3 allocs/op
 ```
 
-## GPU (Apple Metal) Hash160 Offload
+## GPU (Apple Metal) Pipeline: on-device GLV + Hash160 + Bloom
 
-On Apple Silicon the program auto-enables a GPU pipeline that moves the Hash160
-(SHA-256 + RIPEMD-160) off the CPU. The CPU profile shows hashing is **~79.4%**
-of the per-key cost (RIPEMD-160 64.5%, SHA-256 15.0%), with the secp256k1 walk
-~20%, so offloading just the hash to the GPU keeps the elite CPU EC walk feeding
-the device. CPU producers run the batched affine walk and write compressed
-pubkeys **straight into shared (unified-memory) Metal buffers — zero copy** —
-then dispatch one kernel over a large multi-chunk batch; one GPU thread hashes
-one key. A gap-free `frontierTracker` preserves resumable checkpoints under the
-pipeline's out-of-order completion.
+On Apple Silicon the program auto-enables a GPU pipeline. The CPU profile shows
+hashing (SHA-256 + RIPEMD-160) is **~79%** of the per-key cost and the secp256k1
+walk ~20%, so the heavy, embarrassingly parallel work is moved to the device
+while the CPU keeps the part it is genuinely best at.
 
-### Runtime Throughput (end-to-end)
+**Hybrid split (production).** CPU producers run the elite Montgomery-batched
+affine walk and serialize **one base pubkey per linear step** straight into a
+shared (unified-memory) Metal buffer — zero copy. The GPU then, per base point:
 
-On a MacBook Air M3, 8 producers feeding the GPU sustained about **120 million
-checked keys/sec** end-to-end (`[Stats]` line, includes EC walk, GPU Hash160,
-target lookup, and checkpointing) versus ~41–45M for the CPU path — a measured
-**~2.7–2.9x** runtime gain on identical hardware, with zero loss of correctness
-(the GPU digests are bit-exact, verified at startup).
+- derives all **six GLV+negation variants** on-device (`x`, `beta*x`, `beta^2*x`,
+  each in both point-negation parities) for two field multiplies,
+- runs the six-way **Hash160** (unrolled SHA-256 + RIPEMD-160),
+- probes each digest against an on-device **Bloom filter** built from the target
+  set, and
+- **atomically compacts** only the (vanishingly rare) candidate ids into a small
+  output buffer.
 
-The startup auto-calibration on the same machine (each backend measured for
-~0.3s, EC walk + hash, no target scan) picked the GPU:
+The CPU reads back the candidate count (typically zero) per dispatch instead of
+every 20-byte digest, re-hashes each candidate with `btcutil.Hash160`, and
+confirms it by an exact target lookup — so the Bloom filter (FPR ~1e-6, **zero
+false negatives**) is a pure accelerator that can never miss or fabricate a
+match. A gap-free `frontierTracker` preserves resumable checkpoints under the
+pipeline's out-of-order completion. The single shared field inversion stays
+amortized over a 1,024-step CPU batch (the walk's cheapest form) while the device
+absorbs the 6x hashing it saturates on.
+
+### Runtime throughput (end-to-end)
+
+On a MacBook Air M3, 8 producers feeding the GPU sustain about **220–240 million
+checked keys/sec** end-to-end (EC walk + on-device GLV + Hash160 + Bloom probe +
+compaction + confirm + checkpointing) versus ~45–48M for the 8-thread CPU path —
+a measured **~4.5–5x** runtime gain on identical hardware, with zero loss of
+correctness (the GPU GLV expansion and Hash160 are bit-exact, verified at startup
+against `btcutil`).
+
+The startup auto-calibration (each backend measured ~0.3s, the full pipeline
+minus the target scan) picks the GPU:
 
 ```text
-GPU self-test: PASS — bit-exact vs btcutil.Hash160 on Apple M3
+GPU self-test: PASS — Hash160 + on-device GLV expansion bit-exact vs btcutil on Apple M3
 Calibrating backends (~0.6s)...
-  GPU pipeline :  123.5 M keys/sec
-  CPU pipeline :   48.6 M keys/sec
+  GPU pipeline :  218.4 M keys/sec
+  CPU pipeline :   48.0 M keys/sec
 Active backend: GPU — Apple M3 (Apple Metal) | 8 producer(s) x 6 chunks/dispatch = 589824 keys/dispatch
 ```
 
 `--gpu=auto` (default) runs this calibration and chooses the faster backend, so
 the GPU path **can never regress below the CPU path**. `--gpu=on` forces it
 (fatal if the device or bit-exact self-test fails); `--gpu=off` stays on CPU.
+Throughput is thermal-sensitive; the short calibration window under-reports the
+sustained `[Stats]` rate, so it is a backend *selector*, not the headline number.
 
-### Kernel throughput vs batch size
+### Why hybrid, not a full on-GPU walk?
 
-The raw kernel saturates only at large batches, which is why a dispatch spans
-several 98,304-key chunks. Multi-buffer CPU HASH160 (single thread) is shown for
-scale:
+An experimental **full on-GPU EC walk** (`gpu/metal/ec_walk.metal`) is also
+implemented and kept: the host fills only one start point per GPU thread, the
+device fine-walks `ECWalkBatch` affine points per thread with its own per-thread
+Montgomery inversion, then does the same GLV + Hash160 + Bloom. It is bit-exact
+(validated by `TestGPUECWalk` and `gpuECWalkSelfTest` against `btcutil`) and
+frees the CPU almost entirely.
+
+On the M3 reference machine it nonetheless tops out around **166–174M keys/sec —
+slower than the hybrid.** The reason is inversion amortization: the field
+inversion (~80 multiplies' worth of work) is shared across a **1,024**-step batch
+on the CPU but only across a per-thread **`ECWalkBatch` (≤128)** batch on the GPU,
+where pushing the batch higher blows the per-thread register/stack budget and
+collapses occupancy. The device walk therefore pays proportionally more inversion
+cost than the CPU walk it would replace. The CPU is simply the better place to run
+the amortized inversion; the GPU is the better place to run the 6x hash — which is
+exactly what the hybrid does.
+
+The full on-GPU walk is kept as an experiment (and may win on larger GPUs —
+M-Max/Ultra — where occupancy is less constrained), but the **hybrid is the
+production path** chosen by `--gpu=auto`.
+
+### Standalone Hash160 kernel throughput vs batch size
+
+The raw Hash160 kernel (the device building block, before GLV fusion) saturates
+only at large batches, which is why a dispatch spans several 98,304-key chunks.
+Multi-buffer CPU HASH160 (single thread) is shown for scale:
 
 | Batch (keys) | GPU Metal Hash160 | CPU `hash160mb` (1 thread) |
 | ---: | ---: | ---: |
@@ -111,24 +153,36 @@ scale:
 | 262,144 | 135.3 M/s | 10.7 M/s |
 | 1,048,576 | **159.9 M/s** | 10.6 M/s |
 
-The bit-exact correctness test hashes 1,000,000 messages (plus genuine
-secp256k1 pubkeys) and compares every 20-byte digest to `btcutil.Hash160`.
+In production each GPU thread does 6 Hash160 per base point (one per GLV+negation
+variant), so the per-base hash work is ~6x a single hash; fusing it with the
+on-device GLV expansion is what lifts the end-to-end rate above this standalone
+single-hash table. The bit-exact correctness test hashes 1,000,000 messages (plus
+genuine secp256k1 pubkeys) and compares every 20-byte digest to `btcutil.Hash160`.
 
 ### Reproduce
 
 ```text
-# GPU vs CPU Hash160 throughput (Apple Silicon, darwin only)
-make bench-gpu
+# Production GPU vs CPU calibration A/B (Apple Silicon, darwin only)
+go test -ldflags="-linkmode=external" -run TestGPUCalibrationSanity -v .
 
-# Bit-exact correctness (1M messages + real pubkeys)
+# Full GPU correctness surface (field vs math/big, Hash160 vs btcutil, GLV,
+# EC add, on-GPU walk, hybrid end-to-end gate)
+make test-gpu
+
+# Bit-exact Hash160 (1M messages + real pubkeys)
 go test -ldflags="-linkmode=external" -run TestHash160 ./gpu/metal/
+
+# Diagnostics: production tuning sweep + experimental on-GPU walk ceiling
+go test -ldflags="-linkmode=external" -v \
+  -run 'TestGPUProductionSweep|TestGPUWalkDispatchThroughput' .
 
 # CPU baseline for comparison (Metal compiled out)
 make build-cpu && ./bin/btc-brute-force-cpu 8 out.txt addresses.txt
 ```
 
-End-to-end depends on RAM and core count; tune with `BTC_GPU_PRODUCERS` and
-`BTC_GPU_CHUNKS` (defaults: NumCPU producers, 6 chunks/dispatch ≈ 590k keys).
+End-to-end depends on RAM, core count, and thermals; tune with
+`BTC_GPU_PRODUCERS` and `BTC_GPU_CHUNKS` (defaults: NumCPU producers, 6
+chunks/dispatch ≈ 590k keys/dispatch).
 
 ## What Changed
 

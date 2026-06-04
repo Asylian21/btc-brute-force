@@ -1,8 +1,10 @@
-.PHONY: build build-cpu run-example resume-example bench bench-gpu docker-build clean test vet lint all
+.PHONY: build build-cpu run-example resume-example bench bench-gpu docker-build clean test test-gpu vet lint all
 
 # Binary name
 BINARY_NAME=btc-brute-force
-MAIN=./bitcoin-wallet-bruteforce-offline.go
+# Build the whole package (multiple files: bitcoin-wallet-bruteforce-offline.go,
+# bloom.go, doc.go), not a single source file.
+MAIN=.
 BIN_DIR=bin
 THREADS?=8
 EXAMPLE_ADDRESSES=example-addresses.txt
@@ -62,10 +64,21 @@ docker-build:
 	@docker build -t $(BINARY_NAME):latest .
 	@echo "Docker image built: $(BINARY_NAME):latest"
 
-# Run all tests
+# Run all tests (quick): every correctness test, but -short skips the long GPU
+# throughput sweeps (TestGPUProductionSweep, TestGPUWalkDispatchThroughput).
 test:
 	@echo "Running tests..."
-	@go test -ldflags="$(LDFLAGS)" -v .
+	@go test -short -ldflags="$(LDFLAGS)" -v .
+
+# Run the full GPU test surface (Apple Metal, darwin only): the on-device
+# differential suite (field vs math/big, Hash160 vs btcutil, EC add, GLV) plus the
+# main-package production-pipeline tests (self-test gate, hybrid end-to-end,
+# --gpu=auto calibration, and the experimental on-GPU EC walk + self-test). No
+# -short, so it is thorough; all tests skip cleanly if no Metal device is present.
+test-gpu:
+	@echo "Running GPU (Metal) test surface..."
+	@go test -ldflags="$(LDFLAGS)" ./gpu/metal/
+	@go test -ldflags="$(LDFLAGS)" -run 'TestGPU' -v .
 
 # Run go vet
 vet:
