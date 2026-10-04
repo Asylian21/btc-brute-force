@@ -100,22 +100,38 @@ a measured **~4.5–5x** runtime gain on identical hardware, with zero loss of
 correctness (the GPU GLV expansion and Hash160 are bit-exact, verified at startup
 against `btcutil`).
 
-The startup auto-calibration (each backend measured ~0.3s, the full pipeline
-minus the target scan) picks the GPU:
+The startup auto-tune (each backend measured briefly, the full pipeline minus
+the target scan) sweeps the GPU dispatch size and threadgroup for the device,
+then picks the GPU:
 
 ```text
-GPU self-test: PASS — Hash160 + on-device GLV expansion bit-exact vs btcutil on Apple M3
-Calibrating backends (~0.6s)...
-  GPU pipeline :  218.4 M keys/sec
-  CPU pipeline :   48.0 M keys/sec
-Active backend: GPU — Apple M3 (Apple Metal) | 8 producer(s) x 6 chunks/dispatch = 589824 keys/dispatch
+GPU self-test: PASS — Hash160 + on-device GLV expansion bit-exact vs btcutil on Apple M5 Pro
+Tuning GPU for this device (~3s)...
+  GPU pipeline :  679.8 M keys/sec (tuned: 3 chunks/dispatch, threadgroup 256)
+  CPU pipeline :  163.5 M keys/sec
+Active backend: GPU — Apple M5 Pro (Apple Metal) | 18 producer(s) x 3 chunks/dispatch = 294912 keys/dispatch | threadgroup 256
 ```
 
-`--gpu=auto` (default) runs this calibration and chooses the faster backend, so
-the GPU path **can never regress below the CPU path**. `--gpu=on` forces it
-(fatal if the device or bit-exact self-test fails); `--gpu=off` stays on CPU.
-Throughput is thermal-sensitive; the short calibration window under-reports the
-sustained `[Stats]` rate, so it is a backend *selector*, not the headline number.
+`--gpu=auto` (default) runs this tune and chooses the faster backend, so the GPU
+path **can never regress below the CPU path** and adapts the dispatch to the
+specific GPU and its current temperature. `--gpu=on` forces it (fatal if the
+device or bit-exact self-test fails) using the built-in defaults; `--gpu=off`
+stays on CPU. Throughput is strongly thermal-sensitive on laptops: the short
+tune window reports the cool-clock rate, so it is a backend *selector*, not the
+sustained headline.
+
+### Apple M5 Pro (20-core GPU, 6+12 CPU, 48 GB)
+
+On an M5 Pro the tuned hybrid starts near **~685 M keys/sec** from a cool launch
+(18 producers, a ~3–4 chunk dispatch, 384-thread threadgroup) — up from the
+~595 M the previous fixed defaults (6 chunks, 256-thread cap) targeted, about
+**+15%** at peak. Under sustained full load the chassis heat-soaks and the
+device throttles toward **~500 M keys/sec** after a few minutes, so the honest
+range is roughly **500–685 M keys/sec** depending on thermal state. Enable
+**High Power Mode** (System Settings → Battery) and keep the machine cool for
+the high end. The two knobs that move this most are the dispatch size
+(`BTC_GPU_CHUNKS`, best ~3–4 here) and the kernel threadgroup (`BTC_GPU_TG`,
+best ~384 here, vs the old hard-coded 256); `--gpu=auto` sweeps both at launch.
 
 ### Why hybrid, not a full on-GPU walk?
 
@@ -181,8 +197,10 @@ make build-cpu && ./bin/btc-brute-force-cpu 8 out.txt addresses.txt
 ```
 
 End-to-end depends on RAM, core count, and thermals; tune with
-`BTC_GPU_PRODUCERS` and `BTC_GPU_CHUNKS` (defaults: NumCPU producers, 6
-chunks/dispatch ≈ 590k keys/dispatch).
+`BTC_GPU_PRODUCERS`, `BTC_GPU_CHUNKS`, and `BTC_GPU_TG` (threadgroup size; `0` =
+auto). Defaults: `NumCPU` producers, 4 chunks/dispatch (~393k keys/dispatch),
+384-thread threadgroup — the measured knee on Apple Silicon. `--gpu=auto`
+sweeps the chunk count and threadgroup at launch and overrides these per device.
 
 ## What Changed
 

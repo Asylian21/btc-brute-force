@@ -105,19 +105,27 @@ On a Mac with Apple Silicon, `make build` produces a Metal-enabled binary and
 the GPU pipeline is **auto-enabled** — the CPU feeds base pubkeys to the device,
 which expands the six GLV+negation variants, hashes them, and Bloom-filters them
 on-chip. On startup the program runs a bit-exact self-test (Hash160 + on-device
-GLV expansion vs `btcutil`) and a short calibration, then picks the faster
-backend (so it never runs slower than the CPU path). Control it with `--gpu`:
+GLV expansion vs `btcutil`), then a short **per-device tune** that sweeps the GPU
+dispatch size and threadgroup and picks the faster backend (so it never runs
+slower than the CPU path and adapts to the specific GPU and its current thermal
+state). Control it with `--gpu`:
 
 ```bash
-./bin/btc-brute-force --gpu=auto 8 matches.txt addresses.txt   # default: GPU if faster
+./bin/btc-brute-force --gpu=auto 8 matches.txt addresses.txt   # default: tune + GPU if faster
 ./bin/btc-brute-force --gpu=on   8 matches.txt addresses.txt   # force GPU (fatal if unavailable)
 ./bin/btc-brute-force --gpu=off  8 matches.txt addresses.txt   # CPU only
 ```
 
+For the highest sustained throughput, prefer `--gpu=auto`: it re-tunes the
+dispatch on every launch, so it lands on a good configuration for your GPU and
+its temperature at that moment. `--gpu=on` skips the tune and uses the built-in
+defaults (4 chunks/dispatch, 384-thread threadgroup).
+
 Requirements: macOS on Apple Silicon, built natively with cgo (the default for
 `make build` / `make bench-gpu`). Other platforms — and the `make build-cpu`
 (`-tags=nometal`) build — transparently use the CPU path. Tune the pipeline with
-`BTC_GPU_PRODUCERS` and `BTC_GPU_CHUNKS` if needed. See [BENCHMARKS.md](BENCHMARKS.md#gpu-apple-metal-pipeline-on-device-glv--hash160--bloom).
+`BTC_GPU_PRODUCERS`, `BTC_GPU_CHUNKS`, and `BTC_GPU_TG` (threadgroup size; `0` =
+auto) if needed. See [BENCHMARKS.md](BENCHMARKS.md#gpu-apple-metal-pipeline-on-device-glv--hash160--bloom).
 
 For a custom thread count in the demo, pass `THREADS`:
 
