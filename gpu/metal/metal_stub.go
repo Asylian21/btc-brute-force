@@ -26,6 +26,14 @@ func New() (*Hasher, error) { return nil, errUnavailable }
 // Name returns a sentinel for the stub build.
 func (h *Hasher) Name() string { return "none" }
 
+// SetThreadgroup is a no-op in the stub build.
+func (h *Hasher) SetThreadgroup(n int) {}
+
+// PipelineInfo always fails in the stub build.
+func (h *Hasher) PipelineInfo(kernel string) (maxThreads, execWidth int, err error) {
+	return 0, 0, errUnavailable
+}
+
 // Close is a no-op in the stub build.
 func (h *Hasher) Close() {}
 

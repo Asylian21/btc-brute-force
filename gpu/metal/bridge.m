@@ -24,6 +24,7 @@ struct mh_ctx {
     id<MTLCommandQueue> queue;
     id<MTLLibrary>      lib;
     char*               name;
+    uint32_t            tg_override; // 0 = auto (min(maxT, 256)); else forced threadgroup size
 };
 
 static char* copy_cstr(const char* s) {
@@ -112,6 +113,18 @@ void mh_release_pipeline(void* pipeline) {
     [pipe release];
 }
 
+void mh_pipeline_info(void* pipeline, uint32_t* max_threads, uint32_t* exec_width) {
+    if (pipeline == NULL) return;
+    id<MTLComputePipelineState> pipe = (id<MTLComputePipelineState>)pipeline;
+    if (max_threads) *max_threads = (uint32_t)pipe.maxTotalThreadsPerThreadgroup;
+    if (exec_width) *exec_width = (uint32_t)pipe.threadExecutionWidth;
+}
+
+void mh_set_threadgroup(mh_ctx* ctx, uint32_t threads) {
+    if (ctx == NULL) return;
+    ctx->tg_override = threads;
+}
+
 int mh_new_buffer(mh_ctx* ctx, size_t bytes, mh_buffer* out) {
     if (ctx == NULL || out == NULL || bytes == 0) return 1;
     @autoreleasepool {
@@ -169,8 +182,16 @@ int mh_dispatch(mh_ctx* ctx, void* queue, void* pipeline,
         }
 
         NSUInteger maxT = pipe.maxTotalThreadsPerThreadgroup;
-        NSUInteger tg = maxT < 256 ? maxT : 256;
+        NSUInteger tg;
+        if (ctx->tg_override > 0) {
+            // Forced threadgroup size, clamped to the pipeline's register ceiling.
+            tg = ctx->tg_override;
+            if (tg > maxT) tg = maxT;
+        } else {
+            tg = maxT < 256 ? maxT : 256;
+        }
         if (tg > grid) tg = grid;
+        if (tg < 1) tg = 1;
         MTLSize gridSz = MTLSizeMake(grid, 1, 1);
         MTLSize tgs = MTLSizeMake(tg, 1, 1);
         [enc dispatchThreads:gridSz threadsPerThreadgroup:tgs];

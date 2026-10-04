@@ -1450,6 +1450,17 @@ const gpuSubBatchBaseBytes = keyBatchSize * pubStride
 // near-zero CPU confirm rate.
 const gpuBloomFPR = 1e-6
 
+// GPU dispatch defaults, measured as the saturation knee on Apple Silicon (an
+// M5 Pro 20-core GPU here): a 4-chunk dispatch (~393k base points) at a 384-thread
+// threadgroup gives the best end-to-end rate (~+19% over the old 6-chunk /
+// 256-thread defaults). Both are env-overridable (BTC_GPU_CHUNKS, BTC_GPU_TG) and
+// --gpu=auto micro-sweeps around them to adapt to the actual device. A threadgroup
+// of 0 means "auto" (the bridge's min(maxThreadsPerThreadgroup, 256) rule).
+const (
+	gpuDefaultChunksPerDispatch = 4
+	gpuDefaultThreadgroup       = 384
+)
+
 // newKeyStreamForGPU builds a keyStream without its own pubBuf: the GPU producer
 // repoints ks.pubBuf at slices of the shared Metal buffer before each fill.
 func newKeyStreamForGPU() *keyStream {
@@ -2344,17 +2355,25 @@ func main() {
 			gpuProducers = n
 		}
 	}
-	gpuChunksPerDispatch := 6 // ~590k keys/dispatch: near the GPU saturation knee
+	gpuChunksPerDispatch := gpuDefaultChunksPerDispatch // ~393k keys/dispatch: the GPU saturation knee on Apple Silicon
 	if v := os.Getenv("BTC_GPU_CHUNKS"); v != "" {
 		if n, perr := strconv.Atoi(v); perr == nil && n > 0 {
 			gpuChunksPerDispatch = n
 		}
 	}
+	// Threadgroup size for the register-heavy GLV+Hash160 kernel (0 = auto). 384
+	// is the measured best on this machine; --gpu=auto refines it per device.
+	gpuThreadgroup := gpuDefaultThreadgroup
+	if v := os.Getenv("BTC_GPU_TG"); v != "" {
+		if n, perr := strconv.Atoi(v); perr == nil && n >= 0 {
+			gpuThreadgroup = n
+		}
+	}
 
-	useGPU, hasher := selectBackend(*gpuMode, numThreads, gpuProducers, gpuChunksPerDispatch)
+	useGPU, hasher, gpuChunksPerDispatch, gpuThreadgroup := selectBackend(*gpuMode, numThreads, gpuProducers, gpuChunksPerDispatch, gpuThreadgroup)
 	if useGPU {
-		fmt.Printf("Active backend: GPU — %s (Apple Metal) | %d producer(s) x %d chunks/dispatch = %d keys/dispatch\n",
-			hasher.Name(), gpuProducers, gpuChunksPerDispatch, gpuChunksPerDispatch*chunkBatches*endoFactor*keyBatchSize)
+		fmt.Printf("Active backend: GPU — %s (Apple Metal) | %d producer(s) x %d chunks/dispatch = %d keys/dispatch | threadgroup %d\n",
+			hasher.Name(), gpuProducers, gpuChunksPerDispatch, gpuChunksPerDispatch*chunkBatches*endoFactor*keyBatchSize, gpuThreadgroup)
 	} else {
 		fmt.Printf("Active backend: CPU — multi-buffer HASH160 | %d worker thread(s)\n", numThreads)
 	}
@@ -2473,19 +2492,22 @@ func main() {
 
 // selectBackend decides whether to use the hybrid GPU (Apple Metal) pipeline
 // (CPU walk + on-device GLV+Hash160+Bloom) or the CPU hot path, honoring
-// --gpu=auto|on|off. It returns the chosen hasher
-// (nil for CPU). In auto mode it runs the bit-exact self-test and a short
-// calibration and picks the faster backend, guaranteeing no regression below
-// the CPU path. In on mode any failure is fatal; in off mode the GPU is skipped.
-func selectBackend(mode string, numThreads, gpuProducers, gpuChunksPerDispatch int) (bool, *gpumetal.Hasher) {
+// --gpu=auto|on|off. It returns the chosen hasher (nil for CPU) and the GPU
+// dispatch parameters actually used (chunks/dispatch and threadgroup), which auto
+// mode may refine per device. In auto mode it runs the bit-exact self-test, a
+// short per-device tune (threadgroup + chunks), and a CPU/GPU calibration, then
+// picks the faster backend — guaranteeing no regression below the CPU path. In
+// on mode the env/default parameters are applied as-is and any failure is fatal;
+// in off mode the GPU is skipped.
+func selectBackend(mode string, numThreads, gpuProducers, gpuChunksPerDispatch, gpuThreadgroup int) (bool, *gpumetal.Hasher, int, int) {
 	if mode == "off" {
-		return false, nil
+		return false, nil, gpuChunksPerDispatch, gpuThreadgroup
 	}
 	if !gpumetal.Available() {
 		if mode == "on" {
 			log.Fatalf("--gpu=on but this build has no Metal support (needs native darwin + cgo)")
 		}
-		return false, nil
+		return false, nil, gpuChunksPerDispatch, gpuThreadgroup
 	}
 
 	hasher, err := gpumetal.New()
@@ -2494,7 +2516,7 @@ func selectBackend(mode string, numThreads, gpuProducers, gpuChunksPerDispatch i
 			log.Fatalf("--gpu=on but Metal initialization failed: %s", err)
 		}
 		log.Printf("GPU unavailable (%s); using CPU", err)
-		return false, nil
+		return false, nil, gpuChunksPerDispatch, gpuThreadgroup
 	}
 
 	// Correctness gate: refuse a GPU that is not bit-exact, exactly like the CPU
@@ -2505,24 +2527,91 @@ func selectBackend(mode string, numThreads, gpuProducers, gpuChunksPerDispatch i
 			log.Fatalf("--gpu=on but GPU self-test failed: %s", err)
 		}
 		log.Printf("GPU self-test failed (%s); using CPU", err)
-		return false, nil
+		return false, nil, gpuChunksPerDispatch, gpuThreadgroup
 	}
 	fmt.Printf("GPU self-test: PASS — Hash160 + on-device GLV expansion bit-exact vs btcutil on %s\n", hasher.Name())
 
+	// Apply the requested threadgroup (env/default) before any dispatch so the
+	// self-test-passing device runs the hot kernel at the chosen occupancy.
+	hasher.SetThreadgroup(gpuThreadgroup)
+
 	if mode == "on" {
-		return true, hasher
+		return true, hasher, gpuChunksPerDispatch, gpuThreadgroup
 	}
 
-	// auto: measure both backends briefly and choose the faster one.
-	fmt.Printf("Calibrating backends (~0.6s)...\n")
-	gpuRate := calibrateGPUKeysPerSec(300*time.Millisecond, hasher, gpuProducers, gpuChunksPerDispatch)
+	// auto: tune the GPU dispatch for THIS device (threadgroup + chunks), then
+	// compare the tuned GPU path against the CPU and choose the faster one.
+	bestChunks, bestTG, gpuRate := autoTuneGPU(hasher, gpuProducers, gpuChunksPerDispatch, gpuThreadgroup)
 	cpuRate := calibrateCPUKeysPerSec(300*time.Millisecond, numThreads)
-	fmt.Printf("  GPU pipeline : %6.1f M keys/sec\n", gpuRate/1e6)
+	fmt.Printf("  GPU pipeline : %6.1f M keys/sec (tuned: %d chunks/dispatch, threadgroup %d)\n", gpuRate/1e6, bestChunks, bestTG)
 	fmt.Printf("  CPU pipeline : %6.1f M keys/sec\n", cpuRate/1e6)
 	if gpuRate >= cpuRate {
-		return true, hasher
+		hasher.SetThreadgroup(bestTG)
+		return true, hasher, bestChunks, bestTG
 	}
 	hasher.Close()
 	fmt.Printf("  -> CPU is faster on this machine; using CPU.\n")
-	return false, nil
+	return false, nil, gpuChunksPerDispatch, gpuThreadgroup
+}
+
+// autoTuneGPU micro-sweeps the GPU dispatch parameters on the current device and
+// returns the best (chunks/dispatch, threadgroup) and its measured rate. It
+// searches a small grid centered on the caller's starting values: threadgroups
+// {startTG, 256, 384, 512} x chunks {startChunks, 3, 4, 6}, each measured with
+// the REAL production path (calibrateGPUKeysPerSec: CPU fill + GLVFilterStream),
+// so the winner is the configuration the run will actually use.
+//
+// The known-good default (startTG, startChunks) is measured first and becomes the
+// incumbent, and each grid point is scored as the MAX of two short samples (max
+// rejects transient downward noise better than a single window), so a noisy
+// sample can't knock the tune off a good configuration. A short warm-up first
+// settles the GPU clocks so the first grid point is not penalized.
+func autoTuneGPU(hasher *gpumetal.Hasher, producers, startChunks, startTG int) (bestChunks, bestTG int, bestRate float64) {
+	fmt.Printf("Tuning GPU for this device (~3s)...\n")
+
+	// Default-first ordering so the measured-best default is the incumbent.
+	tgCandidates := dedupeInts([]int{startTG, 384, 256, 512})
+	chunkCandidates := dedupeInts([]int{startChunks, 4, 3, 6})
+
+	// Warm-up so the device is at steady clocks before the first timed point.
+	hasher.SetThreadgroup(startTG)
+	_ = calibrateGPUKeysPerSec(300*time.Millisecond, hasher, producers, startChunks)
+
+	measure := func(ch, tg int) float64 {
+		hasher.SetThreadgroup(tg)
+		r := calibrateGPUKeysPerSec(180*time.Millisecond, hasher, producers, ch)
+		if r2 := calibrateGPUKeysPerSec(180*time.Millisecond, hasher, producers, ch); r2 > r {
+			r = r2
+		}
+		return r
+	}
+
+	bestChunks, bestTG = startChunks, startTG
+	bestRate = measure(startChunks, startTG)
+	for _, tg := range tgCandidates {
+		for _, ch := range chunkCandidates {
+			if tg == startTG && ch == startChunks {
+				continue // already measured as the incumbent
+			}
+			if r := measure(ch, tg); r > bestRate {
+				bestRate, bestChunks, bestTG = r, ch, tg
+			}
+		}
+	}
+	return bestChunks, bestTG, bestRate
+}
+
+// dedupeInts returns vs with non-positive and duplicate values removed, order
+// preserved. Used to build small tuning grids from default+override candidates.
+func dedupeInts(vs []int) []int {
+	seen := make(map[int]bool, len(vs))
+	out := vs[:0:0]
+	for _, v := range vs {
+		if v <= 0 || seen[v] {
+			continue
+		}
+		seen[v] = true
+		out = append(out, v)
+	}
+	return out
 }

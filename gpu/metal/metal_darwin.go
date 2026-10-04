@@ -118,6 +118,31 @@ func newWithSource(src string) (*Hasher, error) {
 // Name returns the GPU device name (e.g. "Apple M3").
 func (h *Hasher) Name() string { return h.name }
 
+// SetThreadgroup forces the threads-per-threadgroup used by every subsequent
+// dispatch (0 = auto, the previous min(maxThreads, 256) rule). It is clamped per
+// dispatch to the kernel's maxTotalThreadsPerThreadgroup and the grid size. This
+// tunes occupancy for the register-heavy GLV+Hash160 kernel on a given GPU.
+func (h *Hasher) SetThreadgroup(n int) {
+	if n < 0 {
+		n = 0
+	}
+	C.mh_set_threadgroup(h.ctx, C.uint32_t(n))
+}
+
+// PipelineInfo returns the register-occupancy limits the Metal compiler derived
+// for the named kernel: maxThreads (maxTotalThreadsPerThreadgroup, the occupancy
+// ceiling) and execWidth (threadExecutionWidth, the SIMD width). It builds the
+// pipeline if needed. Used to size threadgroups and to report headroom.
+func (h *Hasher) PipelineInfo(kernel string) (maxThreads, execWidth int, err error) {
+	p, perr := h.pipeline(kernel)
+	if perr != nil {
+		return 0, 0, perr
+	}
+	var mt, ew C.uint32_t
+	C.mh_pipeline_info(p, &mt, &ew)
+	return int(mt), int(ew), nil
+}
+
 // Close releases all Metal resources (pipelines, library, queue, device). The
 // Hasher must not be used afterwards.
 func (h *Hasher) Close() {

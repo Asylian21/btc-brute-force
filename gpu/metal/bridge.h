@@ -45,6 +45,20 @@ const char* mh_device_name(mh_ctx* ctx);
 void* mh_new_pipeline(mh_ctx* ctx, const char* fn_name, char** err);
 void  mh_release_pipeline(void* pipeline);
 
+// mh_pipeline_info reports the register-occupancy limits the Metal compiler
+// derived for a pipeline: *max_threads = maxTotalThreadsPerThreadgroup (the
+// occupancy ceiling, lower when the kernel uses more registers) and *exec_width
+// = threadExecutionWidth (the SIMD width, 32 on Apple GPUs). Threadgroup sizes
+// should be a multiple of exec_width and <= max_threads.
+void mh_pipeline_info(void* pipeline, uint32_t* max_threads, uint32_t* exec_width);
+
+// mh_set_threadgroup overrides the threads-per-threadgroup used by every
+// subsequent mh_dispatch on ctx (0 = auto: the previous min(maxT, 256) rule).
+// The value is clamped per dispatch to the pipeline's maxTotalThreadsPerThreadgroup
+// and the grid size. It lets the host tune occupancy for the register-heavy
+// GLV+Hash160 kernel on a given GPU without recompiling.
+void mh_set_threadgroup(mh_ctx* ctx, uint32_t threads);
+
 // mh_new_buffer allocates a shared buffer of `bytes` and fills *out. Returns 0
 // on success, non-zero on failure.
 int  mh_new_buffer(mh_ctx* ctx, size_t bytes, mh_buffer* out);
