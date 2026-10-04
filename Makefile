@@ -6,7 +6,8 @@ BINARY_NAME=btc-brute-force
 # bloom.go, doc.go), not a single source file.
 MAIN=.
 BIN_DIR=bin
-THREADS?=8
+# Every logical core. On this M5 Pro that is 18 (6 Super + 12 Performance).
+THREADS?=$(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 8)
 EXAMPLE_ADDRESSES=example-addresses.txt
 EXAMPLE_OUTPUT=example-matches.txt
 EXAMPLE_CHECKPOINT=example-checkpoint.json
