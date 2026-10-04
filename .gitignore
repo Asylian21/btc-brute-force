@@ -28,6 +28,11 @@ dist/
 *.out
 /vendor/
 go.work
+go.work.sum
+
+# Local editable clones of the sibling crypto modules. The parent module
+# picks them up through go.work; each clone keeps its own git history.
+/subs/
 
 # ============================================================================
 # Python Cache and Bytecode
