@@ -1,4 +1,4 @@
-.PHONY: build build-cpu run-example resume-example bench bench-gpu docker-build clean test test-gpu vet lint all
+.PHONY: build build-native build-cpu run-example resume-example bench bench-gpu bench-subs bench-local test-subs docker-build clean test test-gpu vet lint all
 
 # Binary name
 BINARY_NAME=btc-brute-force
@@ -11,6 +11,10 @@ THREADS?=$(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 8)
 EXAMPLE_ADDRESSES=example-addresses.txt
 EXAMPLE_OUTPUT=example-matches.txt
 EXAMPLE_CHECKPOINT=example-checkpoint.json
+BENCHTIME?=1s
+BENCHCOUNT?=5
+LOCAL_TOOLCHAIN?=go1.27.1
+LOCAL_GO=env GOTOOLCHAIN=$(LOCAL_TOOLCHAIN) GOWORK="$(abspath go.work)" go
 
 # macOS 15+ requires LC_UUID in Mach-O binaries (Go < 1.24); external linkmode fixes it.
 UNAME_S := $(shell uname -s)
@@ -28,6 +32,13 @@ build:
 	@mkdir -p $(BIN_DIR)
 	@go build -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) $(MAIN)
 	@echo "Build complete: $(BIN_DIR)/$(BINARY_NAME)"
+
+# Local M5 measurements selected this tested toolchain. PGO was within noise;
+# explicitly disable it so a stale default.pgo cannot affect this build.
+build-native:
+	@mkdir -p $(BIN_DIR)
+	@$(LOCAL_GO) build -pgo=off -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) $(MAIN)
+	@echo "Native build complete: $(BIN_DIR)/$(BINARY_NAME) ($(LOCAL_TOOLCHAIN))"
 
 # Build a CPU-only binary (Metal compiled out via the nometal stub). Useful for
 # debugging or measuring the CPU baseline against the GPU path.
@@ -58,6 +69,24 @@ bench:
 bench-gpu:
 	@echo "Benchmarking GPU vs CPU Hash160 (Apple Metal)..."
 	@go test -ldflags="$(LDFLAGS)" -run '^$$' -bench 'Benchmark(GPU|CPU)Hash160' -benchtime=2s ./gpu/metal/
+
+# The local sibling modules are separate packages: go test ./... at the root
+# does not include them. Keep measurements sequential to avoid CPU contention.
+test-subs:
+	@cd subs/secp256k1-field && $(LOCAL_GO) test ./...
+	@cd subs/ripemd160-asm && $(LOCAL_GO) test ./...
+	@cd subs/sha256mb && $(LOCAL_GO) test ./...
+
+bench-subs:
+	@cd subs/secp256k1-field && $(LOCAL_GO) test -pgo=off -run '^$$' -bench '^Benchmark(Mul|Square|Inverse|Normalize|PutBytes|SetBytes)$$' -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT) -cpu=1 .
+	@cd subs/ripemd160-asm && $(LOCAL_GO) test -pgo=off -run '^$$' -bench '^BenchmarkHash32$$/(neon|neon-sha3|scalar)/n=(1|4|1024)$$' -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT) -cpu=1 .
+	@cd subs/sha256mb && $(LOCAL_GO) test -pgo=off -run '^$$' -bench '^BenchmarkHash33$$/sha2x4/n=(4|1024)$$' -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT) -cpu=1 .
+	@cd subs/sha256mb && $(LOCAL_GO) test -pgo=off -run '^$$' -bench '^BenchmarkFromPubkeys33$$/(active|staged|fused)/n=6144$$' -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT) -cpu=1 ./hash160mb
+
+# Synthetic production CPU pipeline; no address list, matches or checkpoints.
+bench-local:
+	@$(LOCAL_GO) test -pgo=off -tags=nometal -ldflags="$(LDFLAGS)" -run '^$$' -bench '^Benchmark(KeyStreamPerKey|BasePubkeyStream)$$' -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT) -cpu=1 .
+	@$(LOCAL_GO) test -pgo=off -tags=nometal -ldflags="$(LDFLAGS)" -run '^$$' -bench '^BenchmarkKeyStreamParallel$$' -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT) -cpu=$(THREADS) .
 
 # Build Docker image
 docker-build:

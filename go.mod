@@ -48,7 +48,7 @@ require (
 	//   - Base58 encoding (used but imported separately)
 	//   - Bitcoin-specific hashing functions
 	// Note: This is the official Bitcoin library in Go
-	github.com/btcsuite/btcutil v1.0.2
+	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
 
 	// SIMD-accelerated SHA256 hashing
 	// Purpose: Hardware-accelerated SHA256 for checksum calculation
@@ -70,7 +70,7 @@ require (
 	// Bitcoin daemon core library
 	// Used by btcutil for constants and shared types
 	// Not directly used in our code
-	github.com/btcsuite/btcd v0.20.1-beta // indirect
+	github.com/btcsuite/btcd v0.22.3 // indirect
 
 	// SECP256k1 curve implementation (lower level)
 	// Used by btcec/v2 for elliptic curve operations
@@ -92,6 +92,8 @@ require (
 	// Platform-specific implementations
 	golang.org/x/sys v0.21.0 // indirect
 )
+
+require github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 // indirect
 
 // ============================================================================
 // DEPENDENCY TREE VISUALIZATION

@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,15 +17,15 @@ func buildTestBinary(t *testing.T, binaryPath string) {
 	t.Helper()
 
 	root := filepath.Join("..", "..")
-	mainGo := filepath.Join(root, "bitcoin-wallet-bruteforce-offline.go")
 	ldflags := "-s -w"
 	if runtime.GOOS == "darwin" {
 		ldflags += " -linkmode=external"
 	}
 
-	cmd := exec.Command("go", "build", "-ldflags="+ldflags, "-o", binaryPath, mainGo)
-	if err := cmd.Run(); err != nil {
-		t.Skipf("Skipping integration test: failed to build binary: %v", err)
+	cmd := exec.Command("go", "build", "-ldflags="+ldflags, "-o", binaryPath, ".")
+	cmd.Dir = root
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("Failed to build integration binary: %v\n%s", err, output)
 	}
 }
 
@@ -37,8 +38,9 @@ func TestBinaryExecution(t *testing.T) {
 
 	// Test invalid arguments (should exit with code 1)
 	cmd := exec.Command(binaryPath, "invalid", "args")
-	if err := cmd.Run(); err == nil {
-		t.Error("Expected error for invalid arguments, got nil")
+	err := cmd.Run()
+	if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
+		t.Fatalf("Expected exit code 1 for invalid arguments, got %v", err)
 	}
 }
 
@@ -61,8 +63,13 @@ func TestBinaryWithMockData(t *testing.T) {
 	}
 
 	// Run binary with timeout (it runs indefinitely, so we'll kill it)
-	cmd := exec.Command(binaryPath, "1", outputFile, addressFile)
+	// Exercise the CPU libraries directly. GPU auto-tuning can exceed this
+	// test's run window and has separate on-device integration coverage.
+	cmd := exec.Command(binaryPath, "--gpu=off", "1", outputFile, addressFile)
 	cmd.Dir = tmpDir
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
 
 	// Start the process
 	if err := cmd.Start(); err != nil {
@@ -82,6 +89,6 @@ func TestBinaryWithMockData(t *testing.T) {
 
 	// Verify output file was created (even if empty)
 	if _, err := os.Stat(outputFile); os.IsNotExist(err) {
-		t.Error("Output file was not created")
+		t.Fatalf("Output file was not created:\n%s", output.String())
 	}
 }

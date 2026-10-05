@@ -2,6 +2,188 @@
 
 This document explains how to benchmark the Bitcoin address-collision research toolkit and how to interpret the results. The important number for the optimized program is `BenchmarkKeyStreamPerKey`, because it measures the production worker hot path: batched secp256k1 point addition plus Hash160 lookup preparation.
 
+## Local M5 Pro optimization — 2026-10-04
+
+The three libraries in `subs/` have been optimized and tested on this machine:
+Apple M5 Pro, 18 CPU cores (6 Super + 12 Performance), 48 GiB RAM,
+macOS/arm64 with hardware SHA-256 and SHA3 instructions. The selected native
+build uses Go 1.27.1; the installed Go 1.22.5 remains supported.
+
+### Production CPU pipeline
+
+These are medians of six interleaved samples per configuration on the same
+machine. Baseline and optimized libraries were built into separate binaries;
+measurements ran sequentially, with alternating configuration order, 600 ms
+per sample. All three configurations use the same corrected benchmark counters
+and resolved root dependency graph. The baseline contains the original library
+sources, so the Go 1.22.5 comparison isolates library changes.
+
+| Measurement | Original libraries, Go 1.22.5 | Optimized, Go 1.22.5 | Optimized, Go 1.27.1 |
+| --- | ---: | ---: | ---: |
+| CPU pipeline, one hash | 95.09 ns | 72.05 ns (-24.23%) | 71.28 ns (-25.05%) |
+| Base public key producer, one point | 85.73 ns | 77.89 ns (-9.14%) | 76.11 ns (-11.23%) |
+| CPU pipeline, 18 workers | 163.5 M hashes/s | 212.4 M hashes/s (+29.92%) | 215.5 M hashes/s (+31.78%) |
+
+Every production-pipeline comparison has `p=0.002`, `n=6`, in benchstat. These
+are measurements of the actual CPU key-stream and HASH160 pipeline, excluding
+target lookup, disk I/O, checkpoints and process-level accounting. They are
+not complete scanner throughput measurements or GPU throughput claims.
+Each generated hash is counted once, including all six GLV/parity variants.
+
+The single-worker hot loops report `0 B/op`, `0 allocs/op`. The parallel
+benchmark includes worker initialization in its timed region: its approximately
+580 B per 6,144-hash batch is amortized setup, while the batch-processing loop
+allocates no memory. Its rounded `0 allocs/op` does not mean worker setup is free.
+
+### Eight-message RIPEMD-160
+
+Staged HASH160 was limited by four-lane RIPEMD-160. A 512-bit SME chain was
+about 3.3× the NEON chain on one core and flat with it at 18 cores, because
+the SME unit does not scale across this chip, so the shipped kernel stays on
+per-core NEON. It runs two independent four-lane groups. `Lanes()` stays 4: a
+remainder of four messages uses the previous kernel, and 1–3 messages stay
+scalar.
+
+Go 1.27.1 on this M5 Pro, five samples, sequential A/B against the four-lane
+kernel only (field and SHA-256 unchanged). Medians from benchstat, `p=0.008`
+except the four-message row (`p=0.016`).
+
+| Measurement | Four-lane | Eight-message | Change |
+| --- | ---: | ---: | ---: |
+| RIPEMD `neon-sha3`, n=2048 | 25.00 M hashes/s | 41.85 M hashes/s | +67.41% |
+| RIPEMD `neon-sha3`, n=4 | 24.71 M hashes/s | 24.45 M hashes/s | -1.06% |
+| HASH160 staged, n=6144 | 18.22 M hashes/s | 26.54 M hashes/s | +45.65% |
+| CPU pipeline, one hash | 72.41 ns | 55.30 ns | -23.63% |
+| CPU pipeline, 18 workers | 215.0 M hashes/s | 274.8 M hashes/s | +27.83% |
+
+Single-worker loops still report zero allocations. `go test -short` at the
+repository root passed with the eight-message kernel, and the `ripemd160-asm`
+suite passed on Go 1.22.5 and Go 1.27.1. Raw samples are under
+`.local-perf/20261004-m5/round2/`.
+
+### Library results
+
+Per-library comparisons used Go 1.22.5 for both versions, one CPU worker, and
+six interleaved samples. Field samples ran for 150 ms; hashing samples ran for
+500 ms. All these hot loops report zero allocations.
+
+| Library / operation | Original | Optimized | Change |
+| --- | ---: | ---: | ---: |
+| `secp256k1-field`: multiply | 8.333 ns | 7.614 ns | -8.63% time |
+| `secp256k1-field`: square | 6.295 ns | 5.511 ns | -12.45% time |
+| `secp256k1-field`: inverse | 3.422 µs | 2.487 µs | -27.33% time |
+| `secp256k1-field`: SetBytes | 2.224 ns | 0.993 ns | -55.35% time |
+| `secp256k1-field`: PutBytes | 2.338 ns | 1.203 ns | -48.55% time |
+| `secp256k1-field`: normalize | 2.049 ns | 1.603 ns | -21.79% time |
+| `ripemd160-asm`: 2,048 messages | 16.48 M hashes/s | 25.22 M hashes/s | +53.11% throughput |
+| `sha256mb/hash160mb`: fused, 6,144 messages | 13.05 M hashes/s | 17.75 M hashes/s | +36.02% throughput |
+
+The field library now uses a shorter inversion addition chain, an ARM64
+repeated-square kernel that keeps intermediate limbs in registers, `EXTR`/`LDP`
+instructions, fewer normalization passes and word-sized endian conversions.
+The existing variable-time contract is preserved.
+
+RIPEMD-160 uses shorter Boolean instruction sequences and schedules independent
+message/constant additions earlier. A generated SHA3 kernel uses `EOR3`/`BCAX`
+only after a positive hardware capability probe. Darwin reads `FEAT_SHA3`
+directly because the dependency's older feature detector does not expose it
+there. Standard NEON and scalar fallbacks remain available. The portable
+fixed-32-byte scalar path is also generated and unrolled.
+
+The standalone SHA-256 four-message hardware kernel remained the fastest tested
+candidate. Five-message interleaving and alternative register/constant layouts
+did not produce a repeatable improvement, so their changes were discarded.
+The optional fused HASH160 kernel gained the RIPEMD instruction scheduling and
+SHA3 optimizations. Its backend report now identifies the kernel actually used.
+Hashing API bounds checks also reject enormous counts/strides before integer
+overflow, with regression tests.
+
+The default HASH160 path remains staged SHA-256 followed by RIPEMD-160. Final
+same-binary comparisons with Go 1.27.1 measured 71.96 ns/hash staged versus
+74.16 ns/hash fused: fused was 3.07% slower (`p=0.002`, six samples). At 18
+workers, staged measured 215.4 M hashes/s versus fused 210.6 M hashes/s; that
+difference was not statistically significant (`p=0.065`). Thus the faster fused
+implementation is available for experiments, but forcing it does not improve
+the selected whole-program CPU pipeline on this machine.
+
+### Build and repeat
+
+`go.work` selects all three local clones. The new local Make targets explicitly
+select that workspace and Go 1.27.1, even if the shell has `GOWORK=off` or an
+older default compiler. Go downloads the selected toolchain into its cache;
+this does not replace the system Go installation.
+
+```bash
+make build-native
+make test-subs
+make bench-local BENCHTIME=1s BENCHCOUNT=6
+make bench-subs BENCHTIME=1s BENCHCOUNT=6
+
+# Optional comparison against the validated older compiler:
+make bench-local LOCAL_TOOLCHAIN=go1.22.5 BENCHTIME=1s BENCHCOUNT=6
+
+# Optional fused-kernel experiment; staged remains the selected default:
+GOHASH160MB_FORCE=fused make bench-local BENCHTIME=1s BENCHCOUNT=6
+```
+
+`make build-native` produces `bin/btc-brute-force` with the normal Metal support
+and the optimized local CPU libraries. CPU benchmarks compile with `nometal`
+to isolate the CPU path. Public library APIs and the scanner algorithm are
+unchanged.
+
+A Go 1.27.1 PGO build was trained on the measured pipeline and compared in six
+paired samples. It measured 216.6 M hashes/s versus 216.8 M without PGO
+(`p=0.699`), with no significant improvement in single-worker measurements
+either. About 89% of CPU samples were in the assembly hashing/field kernels.
+The selected build explicitly uses `-pgo=off`.
+
+A fixed `GOARM64=v8.5` compiler profile was also compared with the default
+`v8.0` profile on this machine, using six alternating 500 ms samples and
+`GOMAXPROCS=18`. It produced no significant improvement: the single-worker
+pipeline measured 72.53 versus 71.59 ns/hash (`p=0.180`), and the parallel
+pipeline measured 215.3 versus 211.9 M hashes/s (`p=0.394`). The tested native
+build therefore keeps the default compiler profile, with hardware hashing
+extensions selected by the libraries' capability probes.
+
+### Validation and evidence
+
+- Root suite: 45 top-level tests passed with Go 1.22.5 and Go 1.27.1. The final
+  Go 1.27.1 suite also passed with fused HASH160 forced. The two long GPU
+  throughput sweeps were skipped by `-short`; Metal differential and pipeline
+  correctness tests ran on this physical M5 Pro.
+- Binary integration suite: 2 passed, 0 skipped. Its build helper now builds
+  the complete package and fails on build errors; previously it built a single
+  source file and skipped when its missing dependencies caused a build failure.
+- All three nested-module suites passed. Field tests cover generic/native
+  implementations, boundary values, aliasing, inverse identities, direct
+  assembly comparisons against the portable backend, dcrd differential tests
+  and `math/big` normalization checks. Hashing kernels were compared
+  against standard/reference implementations, including scalar and forced
+  backends, strides, tails and overflow boundaries.
+- Native race checks, fuzzing, vet and generator-idempotence checks passed in
+  the library audits. Cross-platform compilation was checked separately;
+  compilation alone is not runtime evidence for those platforms. See each
+  library's performance report for its exact platform/test scope.
+
+Raw output, baseline snapshots, fixed benchmark binaries, paired-comparison
+scripts and benchstat results are retained under
+`.local-perf/20261004-m5/` (ignored by Git). The main comparisons are
+`root-benchstat.txt`, `field-benchstat.txt`, `rip-final-benchstat.txt`,
+`hash160-fused-benchstat.txt`, `root-final-mode-benchstat.txt`,
+`root-final-single-benchstat.txt`, `pgo-benchstat.txt` and
+`arm64-profile-benchstat.txt`. `optimized-source-changes.tar.gz` preserves the
+changed/new source files from all four working trees, their base commit IDs,
+checksums and the local workspace file.
+
+Library details: [field](subs/secp256k1-field/PERFORMANCE.md),
+[RIPEMD-160](subs/ripemd160-asm/PERFORMANCE.md),
+[SHA-256 / HASH160](subs/sha256mb/PERFORMANCE.md).
+
+The libraries are independent Git clones under the already-ignored `subs/`
+directory. A commit in this root repository does not capture their optimized
+source files; their working trees must be preserved separately. No commits or
+pushes were made during this optimization.
+
 ## How to Run Benchmarks
 
 ```bash
@@ -17,7 +199,7 @@ go test -bench=. -benchmem -benchtime=5s . ./bench/...
 
 The root package contains benchmarks for the current optimized implementation. The `bench/` package contains educational component benchmarks for the older direct key/hash/Base58 pipeline.
 
-## Current Results
+## Earlier M3 Results
 
 Measured locally with Go 1.22.5 on darwin/arm64:
 

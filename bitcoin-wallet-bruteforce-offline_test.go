@@ -243,6 +243,8 @@ func BenchmarkKeyStreamPerKey(b *testing.B) {
 		ks.nextBatch(hashes)
 		produced += len(hashes)
 	}
+	// Count the complete final batch as well, including fixed-count runs.
+	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(produced), "ns/op")
 }
 
 // TestEndomorphismConstants verifies the GLV constants independently of the hot

@@ -33,6 +33,7 @@ go.work.sum
 # Local editable clones of the sibling crypto modules. The parent module
 # picks them up through go.work; each clone keeps its own git history.
 /subs/
+/.local-perf/
 
 # ============================================================================
 # Python Cache and Bytecode
@@ -193,4 +194,3 @@ private*.txt
 *.db
 *.sqlite
 *.sqlite3
-
