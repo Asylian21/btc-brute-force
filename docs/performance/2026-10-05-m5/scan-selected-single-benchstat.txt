@@ -1,0 +1,35 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+                      │ .local-perf/20261005-m5/scan-selected-single-paired/before.txt │ .local-perf/20261005-m5/scan-selected-single-paired/after.txt │
+                      │                             sec/op                             │                 sec/op                  vs base               │
+CPUScan/targets=20                                                         6.471m ± 5%                              6.485m ± 5%       ~ (p=0.796 n=10)
+CPUScan/targets=65536                                                      6.460m ± 5%                              6.384m ± 2%       ~ (p=0.089 n=10)
+geomean                                                                    6.466m                                   6.435m       -0.48%
+
+                      │ .local-perf/20261005-m5/scan-selected-single-paired/before.txt │ .local-perf/20261005-m5/scan-selected-single-paired/after.txt │
+                      │                            hashes/s                            │                hashes/s                 vs base               │
+CPUScan/targets=20                                                         15.19M ± 5%                              15.16M ± 5%       ~ (p=0.796 n=10)
+CPUScan/targets=65536                                                      15.22M ± 5%                              15.40M ± 2%       ~ (p=0.089 n=10)
+geomean                                                                    15.20M                                   15.28M       +0.48%
+
+                      │ .local-perf/20261005-m5/scan-selected-single-paired/before.txt │ .local-perf/20261005-m5/scan-selected-single-paired/after.txt │
+                      │                            sec/hash                            │                sec/hash                 vs base               │
+CPUScan/targets=20                                                         65.83n ± 5%                              65.98n ± 5%       ~ (p=0.796 n=10)
+CPUScan/targets=65536                                                      65.72n ± 5%                              64.94n ± 2%       ~ (p=0.078 n=10)
+geomean                                                                    65.77n                                   65.46n       -0.48%
+
+                      │ .local-perf/20261005-m5/scan-selected-single-paired/before.txt │ .local-perf/20261005-m5/scan-selected-single-paired/after.txt │
+                      │                              B/op                              │                  B/op                   vs base               │
+CPUScan/targets=20                                                        7.793Ki ± 4%                             7.956Ki ± 3%       ~ (p=1.000 n=10)
+CPUScan/targets=65536                                                     10.64Ki ± 1%                             10.57Ki ± 1%       ~ (p=0.714 n=10)
+geomean                                                                   9.105Ki                                  9.168Ki       +0.69%
+
+                      │ .local-perf/20261005-m5/scan-selected-single-paired/before.txt │ .local-perf/20261005-m5/scan-selected-single-paired/after.txt │
+                      │                           allocs/op                            │              allocs/op                vs base                 │
+CPUScan/targets=20                                                        0.000 ± 0%                               0.000 ± 0%       ~ (p=1.000 n=10) ¹
+CPUScan/targets=65536                                                     0.000 ± 0%                               0.000 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                              ²                                         +0.00%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean

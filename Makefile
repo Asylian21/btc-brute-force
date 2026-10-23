@@ -1,4 +1,4 @@
-.PHONY: build build-native build-cpu run-example resume-example bench bench-gpu bench-subs bench-local test-subs docker-build clean test test-gpu vet lint all
+.PHONY: build build-native build-cpu run-example resume-example bench bench-gpu bench-subs bench-local bench-scan test-subs docker-build clean test test-gpu vet lint all
 
 # Binary name
 BINARY_NAME=btc-brute-force
@@ -87,6 +87,12 @@ bench-subs:
 bench-local:
 	@$(LOCAL_GO) test -pgo=off -tags=nometal -ldflags="$(LDFLAGS)" -run '^$$' -bench '^Benchmark(KeyStreamPerKey|BasePubkeyStream)$$' -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT) -cpu=1 .
 	@$(LOCAL_GO) test -pgo=off -tags=nometal -ldflags="$(LDFLAGS)" -run '^$$' -bench '^BenchmarkKeyStreamParallel$$' -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT) -cpu=$(THREADS) .
+
+# Synthetic CPU scan includes production chunk rebasing and exact map lookups.
+# No target files, matches or checkpoints; keep both configurations sequential.
+bench-scan:
+	@GOMAXPROCS=1 $(LOCAL_GO) test -pgo=off -tags=nometal -ldflags="$(LDFLAGS)" -run '^$$' -bench '^BenchmarkCPUScan$$' -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT) -cpu=1 .
+	@GOMAXPROCS=$(THREADS) $(LOCAL_GO) test -pgo=off -tags=nometal -ldflags="$(LDFLAGS)" -run '^$$' -bench '^BenchmarkCPUScan$$' -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT) -cpu=$(THREADS) .
 
 # Build Docker image
 docker-build:

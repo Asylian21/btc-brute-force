@@ -1,0 +1,70 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamPerKey  	14089017	        56.31 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBasePubkeyStream 	11502178	        77.96 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamPerKey  	16131224	        55.23 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBasePubkeyStream 	11627305	        79.51 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamPerKey  	16025629	        55.56 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBasePubkeyStream 	11602996	        77.25 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamPerKey  	16186952	        55.01 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBasePubkeyStream 	11701171	        77.23 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamPerKey  	16305602	        54.90 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBasePubkeyStream 	11591502	        78.37 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamPerKey  	15474164	        55.95 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBasePubkeyStream 	11435510	        79.38 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamPerKey  	16215522	        55.78 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBasePubkeyStream 	11571792	        77.74 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamPerKey  	15448002	        55.04 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBasePubkeyStream 	11614544	        78.08 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamPerKey  	16135959	        56.48 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBasePubkeyStream 	11599762	        77.81 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamPerKey  	16069682	        56.30 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBasePubkeyStream 	11546263	        77.95 ns/op	       0 B/op	       0 allocs/op
+PASS

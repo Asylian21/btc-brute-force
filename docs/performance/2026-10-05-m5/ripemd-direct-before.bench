@@ -1,0 +1,80 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/ripemd160-asm
+cpu: Apple M5 Pro
+BenchmarkHash32/neon-sha3/n=4         	 1461214	       164.9 ns/op	 776.33 MB/s	  24260400 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=8         	 1200513	       198.6 ns/op	1288.85 MB/s	  40276738 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=2048      	    4917	     48964 ns/op	1338.45 MB/s	  41826443 hashes/s	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/ripemd160-asm
+cpu: Apple M5 Pro
+BenchmarkHash32/neon-sha3/n=4         	 1392144	       167.1 ns/op	 765.86 MB/s	  23933279 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=8         	 1205872	       197.6 ns/op	1295.56 MB/s	  40486406 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=2048      	    5011	     49274 ns/op	1330.03 MB/s	  41563624 hashes/s	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/ripemd160-asm
+cpu: Apple M5 Pro
+BenchmarkHash32/neon-sha3/n=4         	 1394506	       172.4 ns/op	 742.30 MB/s	  23197036 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=8         	 1213996	       203.8 ns/op	1256.40 MB/s	  39262841 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=2048      	    4846	     49107 ns/op	1334.55 MB/s	  41705079 hashes/s	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/ripemd160-asm
+cpu: Apple M5 Pro
+BenchmarkHash32/neon-sha3/n=4         	 1463691	       163.5 ns/op	 782.75 MB/s	  24460980 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=8         	 1218166	       196.5 ns/op	1302.83 MB/s	  40713559 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=2048      	    4995	     48958 ns/op	1338.60 MB/s	  41831404 hashes/s	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/ripemd160-asm
+cpu: Apple M5 Pro
+BenchmarkHash32/neon-sha3/n=4         	 1434463	       164.1 ns/op	 779.98 MB/s	  24374872 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=8         	 1219653	       196.5 ns/op	1303.08 MB/s	  40721137 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=2048      	    4923	     48959 ns/op	1338.60 MB/s	  41831207 hashes/s	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/ripemd160-asm
+cpu: Apple M5 Pro
+BenchmarkHash32/neon-sha3/n=4         	 1448293	       172.6 ns/op	 741.69 MB/s	  23177888 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=8         	 1211107	       196.5 ns/op	1303.08 MB/s	  40721634 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=2048      	    5005	     49836 ns/op	1315.04 MB/s	  41095281 hashes/s	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/ripemd160-asm
+cpu: Apple M5 Pro
+BenchmarkHash32/neon-sha3/n=4         	 1442721	       165.7 ns/op	 772.46 MB/s	  24139406 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=8         	 1000000	       203.1 ns/op	1260.67 MB/s	  39396309 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=2048      	    4826	     50311 ns/op	1302.61 MB/s	  40706812 hashes/s	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/ripemd160-asm
+cpu: Apple M5 Pro
+BenchmarkHash32/neon-sha3/n=4         	 1452228	       164.1 ns/op	 780.08 MB/s	  24377801 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=8         	 1216789	       196.6 ns/op	1302.17 MB/s	  40692952 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=2048      	    4978	     48913 ns/op	1339.84 MB/s	  41870015 hashes/s	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/ripemd160-asm
+cpu: Apple M5 Pro
+BenchmarkHash32/neon-sha3/n=4         	 1447598	       163.7 ns/op	 782.09 MB/s	  24440413 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=8         	 1224663	       195.8 ns/op	1307.34 MB/s	  40854401 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=2048      	    5023	     48833 ns/op	1342.04 MB/s	  41938695 hashes/s	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/ripemd160-asm
+cpu: Apple M5 Pro
+BenchmarkHash32/neon-sha3/n=4         	 1463696	       163.8 ns/op	 781.27 MB/s	  24415046 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=8         	 1222536	       195.5 ns/op	1309.25 MB/s	  40914553 hashes/s	       0 B/op	       0 allocs/op
+BenchmarkHash32/neon-sha3/n=2048      	    5048	     48794 ns/op	1343.10 MB/s	  41972088 hashes/s	       0 B/op	       0 allocs/op
+PASS

@@ -1,0 +1,25 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+                 │ .local-perf/20261005-m5/root-selected-single-paired/before.txt │ .local-perf/20261005-m5/root-selected-single-paired/after.txt │
+                 │                             sec/op                             │                 sec/op                  vs base               │
+KeyStreamPerKey                                                       55.52n ± 1%                              55.67n ± 1%       ~ (p=0.810 n=10)
+BasePubkeyStream                                                      78.25n ± 2%                              77.96n ± 2%       ~ (p=0.143 n=10)
+geomean                                                               65.91n                                   65.88n       -0.05%
+
+                 │ .local-perf/20261005-m5/root-selected-single-paired/before.txt │ .local-perf/20261005-m5/root-selected-single-paired/after.txt │
+                 │                              B/op                              │                 B/op                  vs base                 │
+KeyStreamPerKey                                                      0.000 ± 0%                               0.000 ± 0%       ~ (p=1.000 n=10) ¹
+BasePubkeyStream                                                     0.000 ± 0%                               0.000 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                         ²                                         +0.00%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean
+
+                 │ .local-perf/20261005-m5/root-selected-single-paired/before.txt │ .local-perf/20261005-m5/root-selected-single-paired/after.txt │
+                 │                           allocs/op                            │              allocs/op                vs base                 │
+KeyStreamPerKey                                                      0.000 ± 0%                               0.000 ± 0%       ~ (p=1.000 n=10) ¹
+BasePubkeyStream                                                     0.000 ± 0%                               0.000 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                         ²                                         +0.00%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean

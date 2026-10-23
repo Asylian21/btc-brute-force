@@ -1,0 +1,80 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/secp256k1-field
+cpu: Apple M5 Pro
+BenchmarkMul     	46881103	         7.584 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSquare  	61760163	         5.968 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInverse 	  137359	      2628 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/secp256k1-field
+cpu: Apple M5 Pro
+BenchmarkMul     	46720881	         7.607 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSquare  	61221021	         5.974 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInverse 	  145015	      2483 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/secp256k1-field
+cpu: Apple M5 Pro
+BenchmarkMul     	46625329	         7.572 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSquare  	60898248	         5.956 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInverse 	  142092	      2513 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/secp256k1-field
+cpu: Apple M5 Pro
+BenchmarkMul     	46012758	         7.871 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSquare  	60472014	         5.975 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInverse 	  146302	      2473 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/secp256k1-field
+cpu: Apple M5 Pro
+BenchmarkMul     	46166174	         7.690 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSquare  	58580248	         6.013 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInverse 	  143575	      2481 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/secp256k1-field
+cpu: Apple M5 Pro
+BenchmarkMul     	47285980	         7.584 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSquare  	59857837	         5.957 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInverse 	  145939	      2517 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/secp256k1-field
+cpu: Apple M5 Pro
+BenchmarkMul     	45619911	         7.790 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSquare  	59482826	         6.131 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInverse 	  143570	      2478 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/secp256k1-field
+cpu: Apple M5 Pro
+BenchmarkMul     	46659576	         7.986 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSquare  	60923580	         5.986 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInverse 	  145171	      2478 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/secp256k1-field
+cpu: Apple M5 Pro
+BenchmarkMul     	47266058	         7.609 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSquare  	58383117	         5.982 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInverse 	  144811	      2477 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/secp256k1-field
+cpu: Apple M5 Pro
+BenchmarkMul     	46603196	         7.604 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSquare  	60812094	         5.971 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInverse 	  143302	      2592 ns/op	       0 B/op	       0 allocs/op
+PASS

@@ -1,0 +1,42 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/sha256mb/hash160mb
+cpu: Apple M5 Pro
+                         │ .local-perf/20261005-m5/hash160-selected-paired/before.txt │ .local-perf/20261005-m5/hash160-selected-paired/after.txt │
+                         │                           sec/op                           │              sec/op                vs base                │
+FromPubkeys33/active/n=1                                                  163.2n ± 2%                         146.0n ± 5%  -10.51% (p=0.000 n=10)
+FromPubkeys33/active/n=2                                                  301.2n ± 0%                         302.7n ± 1%        ~ (p=0.066 n=10)
+FromPubkeys33/active/n=3                                                  452.3n ± 0%                         453.9n ± 2%   +0.35% (p=0.007 n=10)
+geomean                                                                   281.2n                              271.7n        -3.37%
+
+                         │ .local-perf/20261005-m5/hash160-selected-paired/before.txt │ .local-perf/20261005-m5/hash160-selected-paired/after.txt │
+                         │                            B/s                             │                B/s                 vs base                │
+FromPubkeys33/active/n=1                                                 192.9Mi ± 2%                        215.5Mi ± 5%  +11.72% (p=0.000 n=10)
+FromPubkeys33/active/n=2                                                 208.9Mi ± 0%                        208.0Mi ± 1%        ~ (p=0.075 n=10)
+FromPubkeys33/active/n=3                                                 208.7Mi ± 0%                        208.0Mi ± 2%   -0.34% (p=0.007 n=10)
+geomean                                                                  203.4Mi                             210.5Mi        +3.48%
+
+                         │ .local-perf/20261005-m5/hash160-selected-paired/before.txt │ .local-perf/20261005-m5/hash160-selected-paired/after.txt │
+                         │                          hashes/s                          │             hashes/s               vs base                │
+FromPubkeys33/active/n=1                                                  6.130M ± 2%                         6.849M ± 5%  +11.72% (p=0.000 n=10)
+FromPubkeys33/active/n=2                                                  6.639M ± 0%                         6.608M ± 1%        ~ (p=0.075 n=10)
+FromPubkeys33/active/n=3                                                  6.633M ± 0%                         6.610M ± 2%   -0.34% (p=0.007 n=10)
+geomean                                                                   6.463M                              6.688M        +3.48%
+
+                         │ .local-perf/20261005-m5/hash160-selected-paired/before.txt │ .local-perf/20261005-m5/hash160-selected-paired/after.txt │
+                         │                            B/op                            │               B/op                vs base                 │
+FromPubkeys33/active/n=1                                                 0.000 ± 0%                           0.000 ± 0%       ~ (p=1.000 n=10) ¹
+FromPubkeys33/active/n=2                                                 0.000 ± 0%                           0.000 ± 0%       ~ (p=1.000 n=10) ¹
+FromPubkeys33/active/n=3                                                 0.000 ± 0%                           0.000 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                             ²                                     +0.00%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean
+
+                         │ .local-perf/20261005-m5/hash160-selected-paired/before.txt │ .local-perf/20261005-m5/hash160-selected-paired/after.txt │
+                         │                         allocs/op                          │            allocs/op              vs base                 │
+FromPubkeys33/active/n=1                                                 0.000 ± 0%                           0.000 ± 0%       ~ (p=1.000 n=10) ¹
+FromPubkeys33/active/n=2                                                 0.000 ± 0%                           0.000 ± 0%       ~ (p=1.000 n=10) ¹
+FromPubkeys33/active/n=3                                                 0.000 ± 0%                           0.000 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                             ²                                     +0.00%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean

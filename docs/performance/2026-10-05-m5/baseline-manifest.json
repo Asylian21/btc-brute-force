@@ -1,0 +1,10 @@
+{
+  "root": "1812418d9307943eb43854a9e102886462059b55",
+  "toolchain": "go1.27.1",
+  "cpu": "Apple M5 Pro",
+  "modules": {
+    "secp256k1-field": "ad7756176b003b05d5448bbc9fb1b11ad44b9a91",
+    "ripemd160-asm": "bb4d29deccc9f0a35dc42957bcc4ba1fbf819cf4",
+    "sha256mb": "56fec619a6ec06ee143d490a0744222948dd1fea"
+  }
+}

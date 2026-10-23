@@ -1,0 +1,25 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/sha256mb
+cpu: Apple M5 Pro
+                     │ .local-perf/20261005-m5/sha-minimal-paired/before.txt │ .local-perf/20261005-m5/sha-minimal-paired/after.txt │
+                     │                        sec/op                         │               sec/op                vs base          │
+Hash33/sha2x4/n=6144                                             88.72µ ± 4%                          88.41µ ± 2%  ~ (p=0.579 n=10)
+
+                     │ .local-perf/20261005-m5/sha-minimal-paired/before.txt │ .local-perf/20261005-m5/sha-minimal-paired/after.txt │
+                     │                          B/s                          │                B/s                  vs base          │
+Hash33/sha2x4/n=6144                                            2.128Gi ± 3%                         2.136Gi ± 2%  ~ (p=0.579 n=10)
+
+                     │ .local-perf/20261005-m5/sha-minimal-paired/before.txt │ .local-perf/20261005-m5/sha-minimal-paired/after.txt │
+                     │                       hashes/s                        │              hashes/s               vs base          │
+Hash33/sha2x4/n=6144                                             69.25M ± 3%                          69.50M ± 2%  ~ (p=0.579 n=10)
+
+                     │ .local-perf/20261005-m5/sha-minimal-paired/before.txt │ .local-perf/20261005-m5/sha-minimal-paired/after.txt │
+                     │                         B/op                          │               B/op                vs base            │
+Hash33/sha2x4/n=6144                                              0.000 ± 0%                         0.000 ± 0%  ~ (p=1.000 n=10) ¹
+¹ all samples are equal
+
+                     │ .local-perf/20261005-m5/sha-minimal-paired/before.txt │ .local-perf/20261005-m5/sha-minimal-paired/after.txt │
+                     │                       allocs/op                       │            allocs/op              vs base            │
+Hash33/sha2x4/n=6144                                              0.000 ± 0%                         0.000 ± 0%  ~ (p=1.000 n=10) ¹
+¹ all samples are equal

@@ -1,0 +1,28 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/secp256k1-field
+cpu: Apple M5 Pro
+        │ .local-perf/20261005-m5/field-selected-paired/before.txt │ .local-perf/20261005-m5/field-selected-paired/after.txt │
+        │                          sec/op                          │              sec/op               vs base               │
+Mul                                                    7.608n ± 3%                        7.611n ± 0%       ~ (p=0.897 n=10)
+Square                                                 5.974n ± 1%                        5.691n ± 0%  -4.75% (p=0.000 n=10)
+Inverse                                                2.482µ ± 4%                        2.485µ ± 1%       ~ (p=1.000 n=10)
+geomean                                                48.32n                             47.57n       -1.56%
+
+        │ .local-perf/20261005-m5/field-selected-paired/before.txt │ .local-perf/20261005-m5/field-selected-paired/after.txt │
+        │                           B/op                           │              B/op               vs base                 │
+Mul                                                   0.000 ± 0%                         0.000 ± 0%       ~ (p=1.000 n=10) ¹
+Square                                                0.000 ± 0%                         0.000 ± 0%       ~ (p=1.000 n=10) ¹
+Inverse                                               0.000 ± 0%                         0.000 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                          ²                                   +0.00%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean
+
+        │ .local-perf/20261005-m5/field-selected-paired/before.txt │ .local-perf/20261005-m5/field-selected-paired/after.txt │
+        │                        allocs/op                         │           allocs/op             vs base                 │
+Mul                                                   0.000 ± 0%                         0.000 ± 0%       ~ (p=1.000 n=10) ¹
+Square                                                0.000 ± 0%                         0.000 ± 0%       ~ (p=1.000 n=10) ¹
+Inverse                                               0.000 ± 0%                         0.000 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                          ²                                   +0.00%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean

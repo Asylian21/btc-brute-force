@@ -2,6 +2,20 @@
 
 This document explains how to benchmark the Bitcoin address-collision research toolkit and how to interpret the results. The important number for the optimized program is `BenchmarkKeyStreamPerKey`, because it measures the production worker hot path: batched secp256k1 point addition plus Hash160 lookup preparation.
 
+## Dependency validation and selective tuning — 2026-10-05
+
+Ten paired samples confirm ARM64 field square at -4.75% time and one-message
+HASH160 at -10.51% time (+11.72% throughput). Short RIPEMD NEON-SHA3 calls gain
+about 1–1.5%. Slower/inconclusive assembly experiments were reverted.
+
+The full 18-worker EC/HASH160 pipeline measured 266.5M hashes/s, and synthetic
+chunk scanning with exact target lookups measured 223.7–232.3M hashes/s. These
+whole-pipeline differences are statistically insignificant; this pass makes no
+whole-scanner or GPU throughput improvement claim. Test/fuzz/guard-page checks
+passed, and `make bench-scan` now measures synthetic chunk scanning separately.
+
+See the [complete report, raw samples and rejected experiments](docs/performance/2026-10-05-m5/README.md).
+
 ## Local M5 Pro optimization — 2026-10-04
 
 The three libraries in `subs/` have been optimized and tested on this machine:

@@ -1,0 +1,70 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkCPUScan/targets=20         	      72	   6487267 ns/op	  15153377 hashes/s	        65.99 ns/hash	    8313 B/op	       0 allocs/op
+BenchmarkCPUScan/targets=65536      	      74	   6373838 ns/op	  15423046 hashes/s	        64.84 ns/hash	   10745 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkCPUScan/targets=20         	      76	   6493668 ns/op	  15138439 hashes/s	        66.06 ns/hash	    7875 B/op	       0 allocs/op
+BenchmarkCPUScan/targets=65536      	      73	   6605511 ns/op	  14882118 hashes/s	        67.19 ns/hash	   10893 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkCPUScan/targets=20         	      72	   6545382 ns/op	  15018833 hashes/s	        66.58 ns/hash	    8313 B/op	       0 allocs/op
+BenchmarkCPUScan/targets=65536      	      73	   6511105 ns/op	  15097898 hashes/s	        66.23 ns/hash	   10893 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkCPUScan/targets=20         	      75	   6169122 ns/op	  15934844 hashes/s	        62.76 ns/hash	    7980 B/op	       0 allocs/op
+BenchmarkCPUScan/targets=65536      	      73	   6405160 ns/op	  15347625 hashes/s	        65.16 ns/hash	   10893 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkCPUScan/targets=20         	      76	   6211424 ns/op	  15826322 hashes/s	        63.19 ns/hash	    7875 B/op	       0 allocs/op
+BenchmarkCPUScan/targets=65536      	      74	   6445711 ns/op	  15251071 hashes/s	        65.57 ns/hash	   10745 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkCPUScan/targets=20         	      72	   6561358 ns/op	  14982264 hashes/s	        66.75 ns/hash	    8313 B/op	       0 allocs/op
+BenchmarkCPUScan/targets=65536      	      73	   6394065 ns/op	  15374257 hashes/s	        65.04 ns/hash	   10893 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkCPUScan/targets=20         	      75	   6488920 ns/op	  15149516 hashes/s	        66.01 ns/hash	    7980 B/op	       0 allocs/op
+BenchmarkCPUScan/targets=65536      	      74	   6359400 ns/op	  15458063 hashes/s	        64.69 ns/hash	   10745 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkCPUScan/targets=20         	      78	   6483706 ns/op	  15161699 hashes/s	        65.96 ns/hash	    7673 B/op	       0 allocs/op
+BenchmarkCPUScan/targets=65536      	      74	   6372529 ns/op	  15426214 hashes/s	        64.82 ns/hash	   10745 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkCPUScan/targets=20         	      72	   6159754 ns/op	  15959079 hashes/s	        62.66 ns/hash	    8313 B/op	       0 allocs/op
+BenchmarkCPUScan/targets=65536      	      74	   6341796 ns/op	  15500971 hashes/s	        64.51 ns/hash	   10745 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkCPUScan/targets=20         	      72	   6154274 ns/op	  15973290 hashes/s	        62.60 ns/hash	    8313 B/op	       0 allocs/op
+BenchmarkCPUScan/targets=65536      	      73	   6335977 ns/op	  15515209 hashes/s	        64.45 ns/hash	   10893 B/op	       0 allocs/op
+PASS

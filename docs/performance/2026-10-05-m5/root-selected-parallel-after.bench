@@ -1,0 +1,60 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamParallel-18    	   39949	     22963 ns/op	 267555904 hashes/s	     363 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamParallel-18    	   39205	     22639 ns/op	 271394664 hashes/s	     380 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamParallel-18    	   36876	     23169 ns/op	 265185766 hashes/s	     393 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamParallel-18    	   38238	     22894 ns/op	 268370969 hashes/s	     384 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamParallel-18    	   35781	     25195 ns/op	 243860738 hashes/s	     405 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamParallel-18    	   36230	     23151 ns/op	 265383616 hashes/s	     411 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamParallel-18    	   39778	     22731 ns/op	 270291513 hashes/s	     375 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamParallel-18    	   38212	     22925 ns/op	 268006228 hashes/s	     395 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamParallel-18    	   38413	     24098 ns/op	 254959909 hashes/s	     383 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkKeyStreamParallel-18    	   36781	     25089 ns/op	 244890534 hashes/s	     394 B/op	       0 allocs/op
+PASS

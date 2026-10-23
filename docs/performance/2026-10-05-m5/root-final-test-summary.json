@@ -1,0 +1,106 @@
+{
+  "root-final-go122-tests.jsonl": {
+    "top_level_tests": {
+      "pass": 45,
+      "skip": 2
+    },
+    "skipped": [
+      "TestGPUProductionSweep",
+      "TestGPUWalkDispatchThroughput"
+    ],
+    "packages": [
+      [
+        "github.com/Asylian21/btc-brute-force/bench",
+        "pass"
+      ],
+      [
+        "github.com/Asylian21/btc-brute-force/gpu/metal",
+        "pass"
+      ],
+      [
+        "github.com/Asylian21/btc-brute-force",
+        "pass"
+      ]
+    ]
+  },
+  "root-final-integration-tests.jsonl": {
+    "top_level_tests": {
+      "pass": 2
+    },
+    "skipped": [],
+    "packages": [
+      [
+        "github.com/Asylian21/btc-brute-force/cmd/btc-brute-force",
+        "pass"
+      ]
+    ]
+  },
+  "root-final-race-tests.jsonl": {
+    "top_level_tests": {
+      "pass": 30
+    },
+    "skipped": [],
+    "packages": [
+      [
+        "github.com/Asylian21/btc-brute-force/bench",
+        "pass"
+      ],
+      [
+        "github.com/Asylian21/btc-brute-force/gpu/metal",
+        "skip"
+      ],
+      [
+        "github.com/Asylian21/btc-brute-force",
+        "pass"
+      ]
+    ]
+  },
+  "root-final-fused-tests.jsonl": {
+    "top_level_tests": {
+      "pass": 45,
+      "skip": 2
+    },
+    "skipped": [
+      "TestGPUProductionSweep",
+      "TestGPUWalkDispatchThroughput"
+    ],
+    "packages": [
+      [
+        "github.com/Asylian21/btc-brute-force/bench",
+        "pass"
+      ],
+      [
+        "github.com/Asylian21/btc-brute-force/gpu/metal",
+        "pass"
+      ],
+      [
+        "github.com/Asylian21/btc-brute-force",
+        "pass"
+      ]
+    ]
+  },
+  "root-final-native-tests.jsonl": {
+    "top_level_tests": {
+      "pass": 45,
+      "skip": 2
+    },
+    "skipped": [
+      "TestGPUProductionSweep",
+      "TestGPUWalkDispatchThroughput"
+    ],
+    "packages": [
+      [
+        "github.com/Asylian21/btc-brute-force/bench",
+        "pass"
+      ],
+      [
+        "github.com/Asylian21/btc-brute-force/gpu/metal",
+        "pass"
+      ],
+      [
+        "github.com/Asylian21/btc-brute-force",
+        "pass"
+      ]
+    ]
+  }
+}

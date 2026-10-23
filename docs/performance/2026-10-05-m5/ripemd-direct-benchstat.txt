@@ -1,0 +1,42 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/ripemd160-asm
+cpu: Apple M5 Pro
+                        │ .local-perf/20261005-m5/ripemd-direct-paired/before.txt │ .local-perf/20261005-m5/ripemd-direct-paired/after.txt │
+                        │                         sec/op                          │             sec/op               vs base               │
+Hash32/neon-sha3/n=4                                                  164.5n ± 5%                       162.0n ± 1%  -1.52% (p=0.000 n=10)
+Hash32/neon-sha3/n=8                                                  196.5n ± 3%                       194.6n ± 0%  -0.99% (p=0.000 n=10)
+Hash32/neon-sha3/n=2048                                               48.96µ ± 2%                       48.96µ ± 1%       ~ (p=0.754 n=10)
+geomean                                                               1.165µ                            1.156µ       -0.84%
+
+                        │ .local-perf/20261005-m5/ripemd-direct-paired/before.txt │ .local-perf/20261005-m5/ripemd-direct-paired/after.txt │
+                        │                           B/s                           │               B/s                vs base               │
+Hash32/neon-sha3/n=4                                                 742.1Mi ± 5%                      753.5Mi ± 1%  +1.53% (p=0.000 n=10)
+Hash32/neon-sha3/n=8                                                 1.213Gi ± 3%                      1.225Gi ± 0%  +1.01% (p=0.000 n=10)
+Hash32/neon-sha3/n=2048                                              1.247Gi ± 2%                      1.247Gi ± 1%       ~ (p=0.725 n=10)
+geomean                                                              1.031Gi                           1.040Gi       +0.85%
+
+                        │ .local-perf/20261005-m5/ripemd-direct-paired/before.txt │ .local-perf/20261005-m5/ripemd-direct-paired/after.txt │
+                        │                        hashes/s                         │            hashes/s              vs base               │
+Hash32/neon-sha3/n=4                                                  24.32M ± 5%                       24.69M ± 1%  +1.53% (p=0.000 n=10)
+Hash32/neon-sha3/n=8                                                  40.70M ± 3%                       41.12M ± 0%  +1.01% (p=0.000 n=10)
+Hash32/neon-sha3/n=2048                                               41.83M ± 2%                       41.83M ± 1%       ~ (p=0.739 n=10)
+geomean                                                               34.59M                            34.89M       +0.85%
+
+                        │ .local-perf/20261005-m5/ripemd-direct-paired/before.txt │ .local-perf/20261005-m5/ripemd-direct-paired/after.txt │
+                        │                          B/op                           │             B/op               vs base                 │
+Hash32/neon-sha3/n=4                                                 0.000 ± 0%                        0.000 ± 0%       ~ (p=1.000 n=10) ¹
+Hash32/neon-sha3/n=8                                                 0.000 ± 0%                        0.000 ± 0%       ~ (p=1.000 n=10) ¹
+Hash32/neon-sha3/n=2048                                              0.000 ± 0%                        0.000 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                         ²                                  +0.00%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean
+
+                        │ .local-perf/20261005-m5/ripemd-direct-paired/before.txt │ .local-perf/20261005-m5/ripemd-direct-paired/after.txt │
+                        │                        allocs/op                        │           allocs/op            vs base                 │
+Hash32/neon-sha3/n=4                                                 0.000 ± 0%                        0.000 ± 0%       ~ (p=1.000 n=10) ¹
+Hash32/neon-sha3/n=8                                                 0.000 ± 0%                        0.000 ± 0%       ~ (p=1.000 n=10) ¹
+Hash32/neon-sha3/n=2048                                              0.000 ± 0%                        0.000 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                         ²                                  +0.00%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean

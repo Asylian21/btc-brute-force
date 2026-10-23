@@ -1,0 +1,35 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+                         │ .local-perf/20261005-m5/scan-selected-parallel-paired/before.txt │ .local-perf/20261005-m5/scan-selected-parallel-paired/after.txt │
+                         │                              sec/op                              │                  sec/op                   vs base               │
+CPUScan/targets=20-18                                                           415.4µ ± 7%                                423.2µ ± 2%       ~ (p=0.481 n=10)
+CPUScan/targets=65536-18                                                        430.9µ ± 4%                                439.4µ ± 6%       ~ (p=0.247 n=10)
+geomean                                                                         423.1µ                                     431.2µ       +1.91%
+
+                         │ .local-perf/20261005-m5/scan-selected-parallel-paired/before.txt │ .local-perf/20261005-m5/scan-selected-parallel-paired/after.txt │
+                         │                             hashes/s                             │                 hashes/s                  vs base               │
+CPUScan/targets=20-18                                                           236.7M ± 6%                                232.3M ± 2%       ~ (p=0.481 n=10)
+CPUScan/targets=65536-18                                                        228.1M ± 4%                                223.7M ± 6%       ~ (p=0.247 n=10)
+geomean                                                                         232.4M                                     228.0M       -1.88%
+
+                         │ .local-perf/20261005-m5/scan-selected-parallel-paired/before.txt │ .local-perf/20261005-m5/scan-selected-parallel-paired/after.txt │
+                         │                             sec/hash                             │                 sec/hash                  vs base               │
+CPUScan/targets=20-18                                                           4.226n ± 7%                                4.304n ± 2%       ~ (p=0.481 n=10)
+CPUScan/targets=65536-18                                                        4.384n ± 4%                                4.470n ± 6%       ~ (p=0.247 n=10)
+geomean                                                                         4.304n                                     4.386n       +1.91%
+
+                         │ .local-perf/20261005-m5/scan-selected-parallel-paired/before.txt │ .local-perf/20261005-m5/scan-selected-parallel-paired/after.txt │
+                         │                               B/op                               │                   B/op                    vs base               │
+CPUScan/targets=20-18                                                          13.36Ki ± 8%                              13.92Ki ± 11%       ~ (p=0.393 n=10)
+CPUScan/targets=65536-18                                                       14.22Ki ± 6%                              14.12Ki ±  9%       ~ (p=0.853 n=10)
+geomean                                                                        13.78Ki                                   14.02Ki        +1.74%
+
+                         │ .local-perf/20261005-m5/scan-selected-parallel-paired/before.txt │ .local-perf/20261005-m5/scan-selected-parallel-paired/after.txt │
+                         │                            allocs/op                             │               allocs/op                 vs base                 │
+CPUScan/targets=20-18                                                          0.000 ± 0%                                 0.000 ± 0%       ~ (p=1.000 n=10) ¹
+CPUScan/targets=65536-18                                                       0.000 ± 0%                                 0.000 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                                   ²                                           +0.00%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean

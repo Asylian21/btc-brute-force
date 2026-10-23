@@ -1,0 +1,121 @@
+[
+  {
+    "check": "sha-native",
+    "exit_code": 0,
+    "passed_tests": 678,
+    "log": "/Users/davidzita/www/btc-brute-force/.local-perf/20261005-m5/sha-native-tests.jsonl"
+  },
+  {
+    "check": "sha-scalar",
+    "exit_code": 0,
+    "passed_tests": 410,
+    "log": "/Users/davidzita/www/btc-brute-force/.local-perf/20261005-m5/sha-scalar-tests.jsonl"
+  },
+  {
+    "check": "sha-forced-hardware",
+    "exit_code": 0,
+    "passed_tests": 678,
+    "log": "/Users/davidzita/www/btc-brute-force/.local-perf/20261005-m5/sha-forced-hardware-tests.jsonl"
+  },
+  {
+    "check": "hash160-forced-staged",
+    "exit_code": 0,
+    "passed_tests": 468,
+    "log": "/Users/davidzita/www/btc-brute-force/.local-perf/20261005-m5/hash160-forced-staged-tests.jsonl"
+  },
+  {
+    "check": "hash160-forced-fused",
+    "exit_code": 0,
+    "passed_tests": 468,
+    "log": "/Users/davidzita/www/btc-brute-force/.local-perf/20261005-m5/hash160-forced-fused-tests.jsonl"
+  },
+  {
+    "check": "hash160-forced-fused-neon",
+    "exit_code": 0,
+    "passed_tests": 379,
+    "log": "/Users/davidzita/www/btc-brute-force/.local-perf/20261005-m5/hash160-forced-fused-neon-tests.jsonl"
+  },
+  {
+    "check": "hash160-forced-fused-sha3",
+    "exit_code": 0,
+    "passed_tests": 468,
+    "log": "/Users/davidzita/www/btc-brute-force/.local-perf/20261005-m5/hash160-forced-fused-sha3-tests.jsonl"
+  },
+  {
+    "check": "sha-race",
+    "exit_code": 0,
+    "passed_tests": 678,
+    "log": "/Users/davidzita/www/btc-brute-force/.local-perf/20261005-m5/sha-race-tests.jsonl"
+  },
+  {
+    "check": "sha-vet",
+    "exit_code": 0,
+    "passed_tests": 0,
+    "log": "/Users/davidzita/www/btc-brute-force/.local-perf/20261005-m5/sha-vet.txt"
+  },
+  {
+    "check": "sha-cover",
+    "exit_code": 0,
+    "passed_tests": 0,
+    "log": "/Users/davidzita/www/btc-brute-force/.local-perf/20261005-m5/sha-cover.txt"
+  },
+  {
+    "check": "sha-generate",
+    "exit_code": 0,
+    "unchanged": true,
+    "files": {
+      "block_arm64.s": "9219636f7bbb88f053fd2b7b0a1569dca65c6af96b6f18860ea39ac35dee92b8",
+      "hash160mb/block_arm64.s": "f60854105d815ffd38e6cfe872f10e980373d1912bb340f1437db384c30652d2",
+      "hash160mb/block_sha3_arm64.s": "9df0c122b7a74adab5d9c8bb62a3a290ed9d3f2579e9f9d0c16cb99913375fef"
+    }
+  },
+  {
+    "check": "sha-gofmt",
+    "exit_code": 0,
+    "output": ""
+  },
+  {
+    "check": "sha-staticcheck",
+    "exit_code": -9
+  },
+  {
+    "check": "sha-go1.22.5-native",
+    "exit_code": 0,
+    "passed_tests": 678,
+    "log": "/Users/davidzita/www/btc-brute-force/.local-perf/20261005-m5/sha-go122.jsonl"
+  },
+  {
+    "check": "sha-staticcheck-go1.22.5",
+    "exit_code": 0,
+    "version": "2024.1.1",
+    "log": "/Users/davidzita/www/btc-brute-force/.local-perf/20261005-m5/sha-staticcheck-go122.txt",
+    "note": "isolated copy repaired invalid existing macOS signature; old tool does not support Go1.27 export data"
+  },
+  {
+    "check": "sha-fuzz-30s",
+    "exit_code": 0,
+    "executions": 1507235,
+    "log": "/Users/davidzita/www/btc-brute-force/.local-perf/20261005-m5/sha-fuzz.txt"
+  },
+  {
+    "check": "hash160-fuzz-30s",
+    "exit_code": 0,
+    "executions": 1893773,
+    "log": "/Users/davidzita/www/btc-brute-force/.local-perf/20261005-m5/hash160-fuzz.txt"
+  },
+  {
+    "check": "sha-crossbuild",
+    "exit_code": 0,
+    "targets": [
+      "linux/amd64",
+      "linux/arm64",
+      "windows/amd64"
+    ],
+    "packages": [
+      "sha256mb",
+      "hash160mb"
+    ],
+    "runtime_tested": false,
+    "log": "/Users/davidzita/www/btc-brute-force/.local-perf/20261005-m5/sha-crossbuild-summary.json"
+  }
+]

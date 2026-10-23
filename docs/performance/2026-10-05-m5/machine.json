@@ -1,0 +1,130 @@
+{
+  "root": "1812418d9307943eb43854a9e102886462059b55",
+  "toolchain": "go1.27.1",
+  "cpu": "Apple M5 Pro",
+  "modules": {
+    "secp256k1-field": "ad7756176b003b05d5448bbc9fb1b11ad44b9a91",
+    "ripemd160-asm": "bb4d29deccc9f0a35dc42957bcc4ba1fbf819cf4",
+    "sha256mb": "56fec619a6ec06ee143d490a0744222948dd1fea"
+  },
+  "os": "macOS-27.0.1-arm64-arm-64bit",
+  "architecture": "arm64",
+  "physical_cpu_count": 18,
+  "memory_bytes": 51539607552,
+  "date": "2026-10-05",
+  "pgo": "off",
+  "cpu_benchmark_tags": "nometal",
+  "pairs": "alternating AB/BA, sequential",
+  "overrides": "backend force environment variables cleared",
+  "cores": {
+    "Super": 6,
+    "Performance": 12
+  },
+  "configured_power_mode": "automatic (powermode=0 on AC and battery)",
+  "root_final_validation": {
+    "root-final-go122-tests.jsonl": {
+      "top_level_tests": {
+        "pass": 45,
+        "skip": 2
+      },
+      "skipped": [
+        "TestGPUProductionSweep",
+        "TestGPUWalkDispatchThroughput"
+      ],
+      "packages": [
+        [
+          "github.com/Asylian21/btc-brute-force/bench",
+          "pass"
+        ],
+        [
+          "github.com/Asylian21/btc-brute-force/gpu/metal",
+          "pass"
+        ],
+        [
+          "github.com/Asylian21/btc-brute-force",
+          "pass"
+        ]
+      ]
+    },
+    "root-final-integration-tests.jsonl": {
+      "top_level_tests": {
+        "pass": 2
+      },
+      "skipped": [],
+      "packages": [
+        [
+          "github.com/Asylian21/btc-brute-force/cmd/btc-brute-force",
+          "pass"
+        ]
+      ]
+    },
+    "root-final-race-tests.jsonl": {
+      "top_level_tests": {
+        "pass": 30
+      },
+      "skipped": [],
+      "packages": [
+        [
+          "github.com/Asylian21/btc-brute-force/bench",
+          "pass"
+        ],
+        [
+          "github.com/Asylian21/btc-brute-force/gpu/metal",
+          "skip"
+        ],
+        [
+          "github.com/Asylian21/btc-brute-force",
+          "pass"
+        ]
+      ]
+    },
+    "root-final-fused-tests.jsonl": {
+      "top_level_tests": {
+        "pass": 45,
+        "skip": 2
+      },
+      "skipped": [
+        "TestGPUProductionSweep",
+        "TestGPUWalkDispatchThroughput"
+      ],
+      "packages": [
+        [
+          "github.com/Asylian21/btc-brute-force/bench",
+          "pass"
+        ],
+        [
+          "github.com/Asylian21/btc-brute-force/gpu/metal",
+          "pass"
+        ],
+        [
+          "github.com/Asylian21/btc-brute-force",
+          "pass"
+        ]
+      ]
+    },
+    "root-final-native-tests.jsonl": {
+      "top_level_tests": {
+        "pass": 45,
+        "skip": 2
+      },
+      "skipped": [
+        "TestGPUProductionSweep",
+        "TestGPUWalkDispatchThroughput"
+      ],
+      "packages": [
+        [
+          "github.com/Asylian21/btc-brute-force/bench",
+          "pass"
+        ],
+        [
+          "github.com/Asylian21/btc-brute-force/gpu/metal",
+          "pass"
+        ],
+        [
+          "github.com/Asylian21/btc-brute-force",
+          "pass"
+        ]
+      ]
+    }
+  }
+}

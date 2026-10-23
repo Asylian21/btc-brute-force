@@ -1,0 +1,37 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/ripemd160-asm
+cpu: Apple M5 Pro
+                        │ .local-perf/20261005-m5/ripemd-paired/before.txt │ .local-perf/20261005-m5/ripemd-paired/after.txt │
+                        │                      sec/op                      │          sec/op           vs base               │
+Hash32/neon/n=2048                                             53.29µ ± 2%                53.25µ ± 1%       ~ (p=0.811 n=10)
+Hash32/neon-sha3/n=2048                                        49.12µ ± 2%                48.99µ ± 1%       ~ (p=0.579 n=10)
+geomean                                                        51.16µ                     51.08µ       -0.17%
+
+                        │ .local-perf/20261005-m5/ripemd-paired/before.txt │ .local-perf/20261005-m5/ripemd-paired/after.txt │
+                        │                       B/s                        │           B/s             vs base               │
+Hash32/neon/n=2048                                            1.145Gi ± 2%               1.146Gi ± 1%       ~ (p=0.796 n=10)
+Hash32/neon-sha3/n=2048                                       1.243Gi ± 2%               1.246Gi ± 1%       ~ (p=0.579 n=10)
+geomean                                                       1.193Gi                    1.195Gi       +0.17%
+
+                        │ .local-perf/20261005-m5/ripemd-paired/before.txt │ .local-perf/20261005-m5/ripemd-paired/after.txt │
+                        │                     hashes/s                     │         hashes/s          vs base               │
+Hash32/neon/n=2048                                             38.43M ± 2%                38.46M ± 1%       ~ (p=0.796 n=10)
+Hash32/neon-sha3/n=2048                                        41.69M ± 2%                41.81M ± 1%       ~ (p=0.579 n=10)
+geomean                                                        40.03M                     40.10M       +0.17%
+
+                        │ .local-perf/20261005-m5/ripemd-paired/before.txt │ .local-perf/20261005-m5/ripemd-paired/after.txt │
+                        │                       B/op                       │          B/op           vs base                 │
+Hash32/neon/n=2048                                            0.000 ± 0%                 0.000 ± 0%       ~ (p=1.000 n=10) ¹
+Hash32/neon-sha3/n=2048                                       0.000 ± 0%                 0.000 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                  ²                           +0.00%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean
+
+                        │ .local-perf/20261005-m5/ripemd-paired/before.txt │ .local-perf/20261005-m5/ripemd-paired/after.txt │
+                        │                    allocs/op                     │       allocs/op         vs base                 │
+Hash32/neon/n=2048                                            0.000 ± 0%                 0.000 ± 0%       ~ (p=1.000 n=10) ¹
+Hash32/neon-sha3/n=2048                                       0.000 ± 0%                 0.000 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                  ²                           +0.00%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean
