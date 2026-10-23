@@ -22,7 +22,10 @@ import (
 func TestGPUSelfTestGate(t *testing.T) {
 	hasher, err := gpumetal.New()
 	if err != nil {
-		t.Skipf("Metal unavailable: %v", err)
+		if err.Error() == "metal: no Metal device available" {
+			t.Skipf("Metal unavailable: %v", err)
+		}
+		t.Fatalf("Metal initialization failed: %v", err)
 	}
 	defer hasher.Close()
 	if err := gpuSelfTest(hasher); err != nil {
@@ -47,7 +50,10 @@ func TestGPUSelfTestGate(t *testing.T) {
 func TestGPUEndToEndPipeline(t *testing.T) {
 	hasher, err := gpumetal.New()
 	if err != nil {
-		t.Skipf("Metal unavailable: %v", err)
+		if err.Error() == "metal: no Metal device available" {
+			t.Skipf("Metal unavailable: %v", err)
+		}
+		t.Fatalf("Metal initialization failed: %v", err)
 	}
 	defer hasher.Close()
 
@@ -122,7 +128,10 @@ func TestGPUEndToEndPipeline(t *testing.T) {
 func TestGPUECWalkSelfTest(t *testing.T) {
 	hasher, err := gpumetal.New()
 	if err != nil {
-		t.Skipf("Metal unavailable: %v", err)
+		if err.Error() == "metal: no Metal device available" {
+			t.Skipf("Metal unavailable: %v", err)
+		}
+		t.Fatalf("Metal initialization failed: %v", err)
 	}
 	defer hasher.Close()
 	if err := gpuECWalkSelfTest(hasher); err != nil {
@@ -131,15 +140,16 @@ func TestGPUECWalkSelfTest(t *testing.T) {
 }
 
 // TestGPUCalibrationSanity exercises the --gpu=auto calibration path after the
-// Phase-4 rewrite that points it at the real on-GPU EC-walk pipeline
-// (GLVWalkStream) instead of the retired CPU-EC GLVFilter path. It asserts both
-// the GPU and CPU calibrators report a positive throughput (a zero would silently
-// force the wrong backend) and logs the measured A/B so --gpu=auto can be trusted
-// to honor the no-regression contract (GPU chosen only when >= CPU).
+// production hybrid pipeline (CPU EC fill plus GLVFilterStream). It asserts
+// both calibrators report positive throughput and logs their short-run rates.
+// This checks liveness; paired benchmarks establish performance acceptance.
 func TestGPUCalibrationSanity(t *testing.T) {
 	hasher, err := gpumetal.New()
 	if err != nil {
-		t.Skipf("Metal unavailable: %v", err)
+		if err.Error() == "metal: no Metal device available" {
+			t.Skipf("Metal unavailable: %v", err)
+		}
+		t.Fatalf("Metal initialization failed: %v", err)
 	}
 	defer hasher.Close()
 
@@ -148,7 +158,7 @@ func TestGPUCalibrationSanity(t *testing.T) {
 	gpuRate := calibrateGPUKeysPerSec(300*time.Millisecond, hasher, producers, chunksPerDispatch)
 	cpuRate := calibrateCPUKeysPerSec(300*time.Millisecond, producers)
 	if gpuRate <= 0 {
-		t.Fatalf("GPU calibration returned %.1f (expected > 0) — on-GPU EC-walk path is not measured", gpuRate)
+		t.Fatalf("GPU calibration returned %.1f (expected > 0) — hybrid pipeline is not measured", gpuRate)
 	}
 	if cpuRate <= 0 {
 		t.Fatalf("CPU calibration returned %.1f (expected > 0)", cpuRate)
@@ -169,7 +179,10 @@ func TestGPUProductionSweep(t *testing.T) {
 	}
 	hasher, err := gpumetal.New()
 	if err != nil {
-		t.Skipf("Metal unavailable: %v", err)
+		if err.Error() == "metal: no Metal device available" {
+			t.Skipf("Metal unavailable: %v", err)
+		}
+		t.Fatalf("Metal initialization failed: %v", err)
 	}
 	defer hasher.Close()
 	for _, producers := range []int{4, 8, 12} {
@@ -192,7 +205,10 @@ func TestGPUWalkDispatchThroughput(t *testing.T) {
 	}
 	hasher, err := gpumetal.New()
 	if err != nil {
-		t.Skipf("Metal unavailable: %v", err)
+		if err.Error() == "metal: no Metal device available" {
+			t.Skipf("Metal unavailable: %v", err)
+		}
+		t.Fatalf("Metal initialization failed: %v", err)
 	}
 	defer hasher.Close()
 
@@ -293,7 +309,10 @@ func scalarMulGSmall(m int) (x, y *big.Int) {
 func TestGPUECWalk(t *testing.T) {
 	hasher, err := gpumetal.New()
 	if err != nil {
-		t.Skipf("Metal unavailable: %v", err)
+		if err.Error() == "metal: no Metal device available" {
+			t.Skipf("Metal unavailable: %v", err)
+		}
+		t.Fatalf("Metal initialization failed: %v", err)
 	}
 	defer hasher.Close()
 

@@ -24,7 +24,10 @@ import (
 func TestGPUBloomFilter(t *testing.T) {
 	hasher, err := gpumetal.New()
 	if err != nil {
-		t.Skipf("Metal unavailable: %v", err)
+		if err.Error() == "metal: no Metal device available" {
+			t.Skipf("Metal unavailable: %v", err)
+		}
+		t.Fatalf("Metal initialization failed: %v", err)
 	}
 	defer hasher.Close()
 

@@ -83,4 +83,11 @@ int mh_dispatch(mh_ctx* ctx, void* queue, void* pipeline,
                 const uint32_t* scalars, uint32_t nscalars,
                 uint32_t grid);
 
+// mh_dispatch_filter has the four-buffer/four-scalar layout shared by the
+// Hash160 and GLV filter kernels. Arguments are passed by value so Go does not
+// allocate temporary argument slices for every synchronous filter dispatch.
+int mh_dispatch_filter(mh_ctx* ctx, void* queue, void* pipeline,
+                       void* in, void* bloom, void* mcount, void* mdata,
+                       uint32_t stride, uint32_t count, uint32_t mask, uint32_t k);
+
 #endif // BTC_BRUTE_FORCE_METAL_BRIDGE_H

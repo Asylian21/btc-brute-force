@@ -16,7 +16,10 @@ func newTestHasher(t testing.TB, extraSrc string) *Hasher {
 	t.Helper()
 	h, err := newWithSource(metalLibrarySource() + "\n" + extraSrc)
 	if err != nil {
-		t.Skipf("Metal unavailable: %v", err)
+		if err.Error() == "metal: no Metal device available" {
+			t.Skipf("Metal unavailable: %v", err)
+		}
+		t.Fatalf("Metal initialization failed: %v", err)
 	}
 	return h
 }

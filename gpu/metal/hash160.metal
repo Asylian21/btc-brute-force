@@ -21,7 +21,8 @@
 //     serialization. Used by the on-GPU GLV expansion (secp_field.metal).
 //
 // Performance notes (Phase 1C):
-//   - SHA-256 uses a 16-word sliding message schedule instead of a 64-word array.
+//   - SHA-256 unrolls all 64 rounds with a 16-word sliding message schedule;
+//     compile-time indices let the compiler keep its words in scalar registers.
 //   - RIPEMD-160 is fully unrolled into 5x16 rounds per line with compile-time
 //     message indices, rotate amounts, and round constants.
 //
@@ -42,17 +43,6 @@ inline uint bswap32(uint v) {
            ((v & 0xff000000u) >> 24);
 }
 
-constant uint K256[64] = {
-    0x428a2f98u, 0x71374491u, 0xb5c0fbcfu, 0xe9b5dba5u, 0x3956c25bu, 0x59f111f1u, 0x923f82a4u, 0xab1c5ed5u,
-    0xd807aa98u, 0x12835b01u, 0x243185beu, 0x550c7dc3u, 0x72be5d74u, 0x80deb1feu, 0x9bdc06a7u, 0xc19bf174u,
-    0xe49b69c1u, 0xefbe4786u, 0x0fc19dc6u, 0x240ca1ccu, 0x2de92c6fu, 0x4a7484aau, 0x5cb0a9dcu, 0x76f988dau,
-    0x983e5152u, 0xa831c66du, 0xb00327c8u, 0xbf597fc7u, 0xc6e00bf3u, 0xd5a79147u, 0x06ca6351u, 0x14292967u,
-    0x27b70a85u, 0x2e1b2138u, 0x4d2c6dfcu, 0x53380d13u, 0x650a7354u, 0x766a0abbu, 0x81c2c92eu, 0x92722c85u,
-    0xa2bfe8a1u, 0xa81a664bu, 0xc24b8b70u, 0xc76c51a3u, 0xd192e819u, 0xd6990624u, 0xf40e3585u, 0x106aa070u,
-    0x19a4c116u, 0x1e376c08u, 0x2748774cu, 0x34b0bcb5u, 0x391c0cb3u, 0x4ed8aa4au, 0x5b9cca4fu, 0x682e6ff3u,
-    0x748f82eeu, 0x78a5636fu, 0x84c87814u, 0x8cc70208u, 0x90befffau, 0xa4506cebu, 0xbef9a3f7u, 0xc67178f2u
-};
-
 // RIPEMD-160 nonlinear functions (one per 16-round group).
 #define RF1(x, y, z) ((x) ^ (y) ^ (z))
 #define RF2(x, y, z) (((x) & (y)) | (~(x) & (z)))
@@ -64,6 +54,26 @@ constant uint K256[64] = {
 #define LROUND(F, r, s, K) { uint t = rotl32(al + F(bl, cl, dl) + x[r] + (K), s) + el; al = el; el = dl; dl = rotl32(cl, 10u); cl = bl; bl = t; }
 #define RROUND(F, r, s, K) { uint t = rotl32(ar + F(br, cr, dr) + x[r] + (K), s) + er; ar = er; er = dr; dr = rotl32(cr, 10u); cr = br; br = t; }
 
+// SHA round arguments rotate the logical state instead of assigning its six
+// unchanged words every round. Constant schedule indices remove dynamic thread
+// array indexing from the sliding window (and let padding words fold away).
+#define SHA_ROUND(A, B, C, D, E, F, G, H, W, K) { \
+    uint S1 = rotr32(E, 6u) ^ rotr32(E, 11u) ^ rotr32(E, 25u); \
+    uint ch = ((E) & (F)) ^ (~(E) & (G)); \
+    uint t1 = (H) + S1 + ch + (K) + (W); \
+    uint S0 = rotr32(A, 2u) ^ rotr32(A, 13u) ^ rotr32(A, 22u); \
+    uint maj = ((A) & (B)) ^ ((A) & (C)) ^ ((B) & (C)); \
+    uint t2 = S0 + maj; \
+    (D) += t1; (H) = t1 + t2; \
+}
+#define SHA_EXPAND(I) { \
+    uint w15 = w[((I) + 1u) & 15u]; \
+    uint w2 = w[((I) + 14u) & 15u]; \
+    uint s0 = rotr32(w15, 7u) ^ rotr32(w15, 18u) ^ (w15 >> 3u); \
+    uint s1 = rotr32(w2, 17u) ^ rotr32(w2, 19u) ^ (w2 >> 10u); \
+    w[(I) & 15u] += s0 + w[((I) + 9u) & 15u] + s1; \
+}
+
 // sha_then_ripemd computes Hash160 from a 16-word big-endian SHA-256 message
 // block w[0..15] (the message is the 33-byte compressed pubkey, padded). It
 // modifies w (the SHA-256 sliding schedule) and writes the five little-endian
@@ -72,33 +82,128 @@ inline void sha_then_ripemd(thread uint* w, thread uint r[5]) {
     uint a = 0x6a09e667u, b = 0xbb67ae85u, c = 0x3c6ef372u, d = 0xa54ff53au;
     uint e = 0x510e527fu, f = 0x9b05688cu, g = 0x1f83d9abu, h = 0x5be0cd19u;
 
-    // Rounds 0..15 consume the loaded words directly.
-    for (uint i = 0; i < 16u; i++) {
-        uint S1 = rotr32(e, 6) ^ rotr32(e, 11) ^ rotr32(e, 25);
-        uint ch = (e & f) ^ (~e & g);
-        uint t1 = h + S1 + ch + K256[i] + w[i];
-        uint S0 = rotr32(a, 2) ^ rotr32(a, 13) ^ rotr32(a, 22);
-        uint maj = (a & b) ^ (a & c) ^ (b & c);
-        uint t2 = S0 + maj;
-        h = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2;
-    }
-    // Rounds 16..63 extend the schedule in a 16-word sliding window.
-    for (uint i = 16; i < 64u; i++) {
-        uint w15 = w[(i + 1u) & 15u];
-        uint w2  = w[(i + 14u) & 15u];
-        uint s0 = rotr32(w15, 7) ^ rotr32(w15, 18) ^ (w15 >> 3);
-        uint s1 = rotr32(w2, 17) ^ rotr32(w2, 19)  ^ (w2 >> 10);
-        uint wi = w[i & 15u] + s0 + w[(i + 9u) & 15u] + s1;
-        w[i & 15u] = wi;
+    // Rounds 0..15 consume the loaded words; later rounds extend the window.
+    SHA_ROUND(a, b, c, d, e, f, g, h, w[0], 0x428a2f98u)
+    SHA_ROUND(h, a, b, c, d, e, f, g, w[1], 0x71374491u)
+    SHA_ROUND(g, h, a, b, c, d, e, f, w[2], 0xb5c0fbcfu)
+    SHA_ROUND(f, g, h, a, b, c, d, e, w[3], 0xe9b5dba5u)
+    SHA_ROUND(e, f, g, h, a, b, c, d, w[4], 0x3956c25bu)
+    SHA_ROUND(d, e, f, g, h, a, b, c, w[5], 0x59f111f1u)
+    SHA_ROUND(c, d, e, f, g, h, a, b, w[6], 0x923f82a4u)
+    SHA_ROUND(b, c, d, e, f, g, h, a, w[7], 0xab1c5ed5u)
 
-        uint S1 = rotr32(e, 6) ^ rotr32(e, 11) ^ rotr32(e, 25);
-        uint ch = (e & f) ^ (~e & g);
-        uint t1 = h + S1 + ch + K256[i] + wi;
-        uint S0 = rotr32(a, 2) ^ rotr32(a, 13) ^ rotr32(a, 22);
-        uint maj = (a & b) ^ (a & c) ^ (b & c);
-        uint t2 = S0 + maj;
-        h = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2;
-    }
+    SHA_ROUND(a, b, c, d, e, f, g, h, w[8], 0xd807aa98u)
+    SHA_ROUND(h, a, b, c, d, e, f, g, w[9], 0x12835b01u)
+    SHA_ROUND(g, h, a, b, c, d, e, f, w[10], 0x243185beu)
+    SHA_ROUND(f, g, h, a, b, c, d, e, w[11], 0x550c7dc3u)
+    SHA_ROUND(e, f, g, h, a, b, c, d, w[12], 0x72be5d74u)
+    SHA_ROUND(d, e, f, g, h, a, b, c, w[13], 0x80deb1feu)
+    SHA_ROUND(c, d, e, f, g, h, a, b, w[14], 0x9bdc06a7u)
+    SHA_ROUND(b, c, d, e, f, g, h, a, w[15], 0xc19bf174u)
+
+    // Expanded schedule words use literal indices after constant folding.
+    SHA_EXPAND(16u)
+    SHA_ROUND(a, b, c, d, e, f, g, h, w[0], 0xe49b69c1u)
+    SHA_EXPAND(17u)
+    SHA_ROUND(h, a, b, c, d, e, f, g, w[1], 0xefbe4786u)
+    SHA_EXPAND(18u)
+    SHA_ROUND(g, h, a, b, c, d, e, f, w[2], 0x0fc19dc6u)
+    SHA_EXPAND(19u)
+    SHA_ROUND(f, g, h, a, b, c, d, e, w[3], 0x240ca1ccu)
+    SHA_EXPAND(20u)
+    SHA_ROUND(e, f, g, h, a, b, c, d, w[4], 0x2de92c6fu)
+    SHA_EXPAND(21u)
+    SHA_ROUND(d, e, f, g, h, a, b, c, w[5], 0x4a7484aau)
+    SHA_EXPAND(22u)
+    SHA_ROUND(c, d, e, f, g, h, a, b, w[6], 0x5cb0a9dcu)
+    SHA_EXPAND(23u)
+    SHA_ROUND(b, c, d, e, f, g, h, a, w[7], 0x76f988dau)
+
+    SHA_EXPAND(24u)
+    SHA_ROUND(a, b, c, d, e, f, g, h, w[8], 0x983e5152u)
+    SHA_EXPAND(25u)
+    SHA_ROUND(h, a, b, c, d, e, f, g, w[9], 0xa831c66du)
+    SHA_EXPAND(26u)
+    SHA_ROUND(g, h, a, b, c, d, e, f, w[10], 0xb00327c8u)
+    SHA_EXPAND(27u)
+    SHA_ROUND(f, g, h, a, b, c, d, e, w[11], 0xbf597fc7u)
+    SHA_EXPAND(28u)
+    SHA_ROUND(e, f, g, h, a, b, c, d, w[12], 0xc6e00bf3u)
+    SHA_EXPAND(29u)
+    SHA_ROUND(d, e, f, g, h, a, b, c, w[13], 0xd5a79147u)
+    SHA_EXPAND(30u)
+    SHA_ROUND(c, d, e, f, g, h, a, b, w[14], 0x06ca6351u)
+    SHA_EXPAND(31u)
+    SHA_ROUND(b, c, d, e, f, g, h, a, w[15], 0x14292967u)
+
+    SHA_EXPAND(32u)
+    SHA_ROUND(a, b, c, d, e, f, g, h, w[0], 0x27b70a85u)
+    SHA_EXPAND(33u)
+    SHA_ROUND(h, a, b, c, d, e, f, g, w[1], 0x2e1b2138u)
+    SHA_EXPAND(34u)
+    SHA_ROUND(g, h, a, b, c, d, e, f, w[2], 0x4d2c6dfcu)
+    SHA_EXPAND(35u)
+    SHA_ROUND(f, g, h, a, b, c, d, e, w[3], 0x53380d13u)
+    SHA_EXPAND(36u)
+    SHA_ROUND(e, f, g, h, a, b, c, d, w[4], 0x650a7354u)
+    SHA_EXPAND(37u)
+    SHA_ROUND(d, e, f, g, h, a, b, c, w[5], 0x766a0abbu)
+    SHA_EXPAND(38u)
+    SHA_ROUND(c, d, e, f, g, h, a, b, w[6], 0x81c2c92eu)
+    SHA_EXPAND(39u)
+    SHA_ROUND(b, c, d, e, f, g, h, a, w[7], 0x92722c85u)
+
+    SHA_EXPAND(40u)
+    SHA_ROUND(a, b, c, d, e, f, g, h, w[8], 0xa2bfe8a1u)
+    SHA_EXPAND(41u)
+    SHA_ROUND(h, a, b, c, d, e, f, g, w[9], 0xa81a664bu)
+    SHA_EXPAND(42u)
+    SHA_ROUND(g, h, a, b, c, d, e, f, w[10], 0xc24b8b70u)
+    SHA_EXPAND(43u)
+    SHA_ROUND(f, g, h, a, b, c, d, e, w[11], 0xc76c51a3u)
+    SHA_EXPAND(44u)
+    SHA_ROUND(e, f, g, h, a, b, c, d, w[12], 0xd192e819u)
+    SHA_EXPAND(45u)
+    SHA_ROUND(d, e, f, g, h, a, b, c, w[13], 0xd6990624u)
+    SHA_EXPAND(46u)
+    SHA_ROUND(c, d, e, f, g, h, a, b, w[14], 0xf40e3585u)
+    SHA_EXPAND(47u)
+    SHA_ROUND(b, c, d, e, f, g, h, a, w[15], 0x106aa070u)
+
+    SHA_EXPAND(48u)
+    SHA_ROUND(a, b, c, d, e, f, g, h, w[0], 0x19a4c116u)
+    SHA_EXPAND(49u)
+    SHA_ROUND(h, a, b, c, d, e, f, g, w[1], 0x1e376c08u)
+    SHA_EXPAND(50u)
+    SHA_ROUND(g, h, a, b, c, d, e, f, w[2], 0x2748774cu)
+    SHA_EXPAND(51u)
+    SHA_ROUND(f, g, h, a, b, c, d, e, w[3], 0x34b0bcb5u)
+    SHA_EXPAND(52u)
+    SHA_ROUND(e, f, g, h, a, b, c, d, w[4], 0x391c0cb3u)
+    SHA_EXPAND(53u)
+    SHA_ROUND(d, e, f, g, h, a, b, c, w[5], 0x4ed8aa4au)
+    SHA_EXPAND(54u)
+    SHA_ROUND(c, d, e, f, g, h, a, b, w[6], 0x5b9cca4fu)
+    SHA_EXPAND(55u)
+    SHA_ROUND(b, c, d, e, f, g, h, a, w[7], 0x682e6ff3u)
+
+    SHA_EXPAND(56u)
+    SHA_ROUND(a, b, c, d, e, f, g, h, w[8], 0x748f82eeu)
+    SHA_EXPAND(57u)
+    SHA_ROUND(h, a, b, c, d, e, f, g, w[9], 0x78a5636fu)
+    SHA_EXPAND(58u)
+    SHA_ROUND(g, h, a, b, c, d, e, f, w[10], 0x84c87814u)
+    SHA_EXPAND(59u)
+    SHA_ROUND(f, g, h, a, b, c, d, e, w[11], 0x8cc70208u)
+    SHA_EXPAND(60u)
+    SHA_ROUND(e, f, g, h, a, b, c, d, w[12], 0x90befffau)
+    SHA_EXPAND(61u)
+    SHA_ROUND(d, e, f, g, h, a, b, c, w[13], 0xa4506cebu)
+    SHA_EXPAND(62u)
+    SHA_ROUND(c, d, e, f, g, h, a, b, w[14], 0xbef9a3f7u)
+    SHA_EXPAND(63u)
+    SHA_ROUND(b, c, d, e, f, g, h, a, w[15], 0xc67178f2u)
+
     uint sh0 = 0x6a09e667u + a, sh1 = 0xbb67ae85u + b, sh2 = 0x3c6ef372u + c, sh3 = 0xa54ff53au + d;
     uint sh4 = 0x510e527fu + e, sh5 = 0x9b05688cu + f, sh6 = 0x1f83d9abu + g, sh7 = 0x5be0cd19u + h;
 
@@ -175,6 +280,8 @@ inline void sha_then_ripemd(thread uint* w, thread uint r[5]) {
     r[4] = 0x67452301u + bl + cr;
 }
 
+#undef SHA_ROUND
+#undef SHA_EXPAND
 #undef RF1
 #undef RF2
 #undef RF3

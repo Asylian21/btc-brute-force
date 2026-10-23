@@ -1,0 +1,70 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkHybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18         	    1824	    615565 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.1683 candidates/dispatch	    393216 hashes/dispatch	 638788362 hashes/s	         1.565 ns/hash	     154 B/op	       3 allocs/op
+BenchmarkGPUDispatch/p=18/chunks=4/tg=384/targets=65536-18           	    1944	    600808 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.2778 candidates/dispatch	    393216 hashes/dispatch	 654479033 hashes/s	         1.528 ns/hash	      48 B/op	       2 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkHybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18         	    1724	    623061 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.1694 candidates/dispatch	    393216 hashes/dispatch	 631103485 hashes/s	         1.585 ns/hash	     149 B/op	       3 allocs/op
+BenchmarkGPUDispatch/p=18/chunks=4/tg=384/targets=65536-18           	    2070	    566807 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.2797 candidates/dispatch	    393216 hashes/dispatch	 693738977 hashes/s	         1.441 ns/hash	      48 B/op	       2 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkHybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18         	    1902	    602760 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.1661 candidates/dispatch	    393216 hashes/dispatch	 652359112 hashes/s	         1.533 ns/hash	     139 B/op	       3 allocs/op
+BenchmarkGPUDispatch/p=18/chunks=4/tg=384/targets=65536-18           	    2095	    563657 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.2778 candidates/dispatch	    393216 hashes/dispatch	 697615846 hashes/s	         1.433 ns/hash	      50 B/op	       2 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkHybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18         	    2145	    567669 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.1655 candidates/dispatch	    393216 hashes/dispatch	 692685401 hashes/s	         1.444 ns/hash	     141 B/op	       3 allocs/op
+BenchmarkGPUDispatch/p=18/chunks=4/tg=384/targets=65536-18           	    2173	    571478 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.2780 candidates/dispatch	    393216 hashes/dispatch	 688068220 hashes/s	         1.453 ns/hash	      48 B/op	       2 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkHybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18         	    1946	    564125 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.1675 candidates/dispatch	    393216 hashes/dispatch	 697036978 hashes/s	         1.435 ns/hash	     138 B/op	       3 allocs/op
+BenchmarkGPUDispatch/p=18/chunks=4/tg=384/targets=65536-18           	    2128	    556689 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.2777 candidates/dispatch	    393216 hashes/dispatch	 706348221 hashes/s	         1.416 ns/hash	      48 B/op	       2 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkHybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18         	    1933	    563481 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.1681 candidates/dispatch	    393216 hashes/dispatch	 697833153 hashes/s	         1.433 ns/hash	     145 B/op	       3 allocs/op
+BenchmarkGPUDispatch/p=18/chunks=4/tg=384/targets=65536-18           	    2155	    557857 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.2775 candidates/dispatch	    393216 hashes/dispatch	 704868592 hashes/s	         1.419 ns/hash	      48 B/op	       2 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkHybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18         	    1941	    561189 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.1680 candidates/dispatch	    393216 hashes/dispatch	 700683737 hashes/s	         1.427 ns/hash	     142 B/op	       3 allocs/op
+BenchmarkGPUDispatch/p=18/chunks=4/tg=384/targets=65536-18           	    2126	    554866 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.2775 candidates/dispatch	    393216 hashes/dispatch	 708668419 hashes/s	         1.411 ns/hash	      50 B/op	       2 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkHybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18         	    1958	    564199 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.1680 candidates/dispatch	    393216 hashes/dispatch	 696945907 hashes/s	         1.435 ns/hash	     156 B/op	       3 allocs/op
+BenchmarkGPUDispatch/p=18/chunks=4/tg=384/targets=65536-18           	    2121	    559000 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.2763 candidates/dispatch	    393216 hashes/dispatch	 703427524 hashes/s	         1.422 ns/hash	      48 B/op	       2 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkHybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18         	    2074	    575855 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.1663 candidates/dispatch	    393216 hashes/dispatch	 682839026 hashes/s	         1.464 ns/hash	     151 B/op	       3 allocs/op
+BenchmarkGPUDispatch/p=18/chunks=4/tg=384/targets=65536-18           	    2114	    559538 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.2777 candidates/dispatch	    393216 hashes/dispatch	 702751173 hashes/s	         1.423 ns/hash	      48 B/op	       2 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+BenchmarkHybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18         	    1951	    575940 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.1671 candidates/dispatch	    393216 hashes/dispatch	 682737293 hashes/s	         1.465 ns/hash	     150 B/op	       3 allocs/op
+BenchmarkGPUDispatch/p=18/chunks=4/tg=384/targets=65536-18           	    2107	    554213 ns/op	    262144 bloom_bytes	        49.72 bloom_occupancy_pct	        22.00 bloom_probes	         0.2786 candidates/dispatch	    393216 hashes/dispatch	 709502981 hashes/s	         1.409 ns/hash	      48 B/op	       2 allocs/op
+PASS

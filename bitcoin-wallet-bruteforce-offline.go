@@ -1094,8 +1094,8 @@ func linearOffsetFromKeys(base, frontier [32]byte) (uint64, error) {
 	var b, f, diff secp.ModNScalar
 	b.SetBytes(&base)
 	f.SetBytes(&frontier)
-	b.Negate()              // -base (mod N)
-	diff.Set(&f).Add(&b)    // frontier - base (mod N)
+	b.Negate()           // -base (mod N)
+	diff.Set(&f).Add(&b) // frontier - base (mod N)
 	d := diff.Bytes()
 	for i := 0; i < 24; i++ {
 		if d[i] != 0 {
@@ -1451,9 +1451,9 @@ const gpuSubBatchBaseBytes = keyBatchSize * pubStride
 const gpuBloomFPR = 1e-6
 
 // GPU dispatch defaults, measured as the saturation knee on Apple Silicon (an
-// M5 Pro 20-core GPU here): a 4-chunk dispatch (~393k base points) at a 384-thread
-// threadgroup gives the best end-to-end rate (~+19% over the old 6-chunk /
-// 256-thread defaults). Both are env-overridable (BTC_GPU_CHUNKS, BTC_GPU_TG) and
+// M5 Pro 20-core GPU here): a 4-chunk dispatch (65,536 base points, 393,216
+// variant hashes) at a 384-thread threadgroup. Both are env-overridable
+// (BTC_GPU_CHUNKS, BTC_GPU_TG) and
 // --gpu=auto micro-sweeps around them to adapt to the actual device. A threadgroup
 // of 0 means "auto" (the bridge's min(maxThreadsPerThreadgroup, 256) rule).
 const (
@@ -1508,8 +1508,8 @@ func gpuProducer(id int, wg *sync.WaitGroup, hasher *gpumetal.Hasher, chunksPerD
 	}
 	defer in.Free()
 	// mcount: one atomic candidate counter (padded). mdata: candidate ids; Bloom
-	// hits are far rarer than baseCount, so a baseCount-slot buffer never overflows
-	// (the kernel also caps writes at the candidate count).
+	// hits are usually far rarer than baseCount. The kernel caps writes to this
+	// capacity; the host rejects overflow before advancing the frontier.
 	mcount, err := hasher.NewBuffer(16)
 	if err != nil {
 		log.Printf("GPU producer %d: counter buffer alloc failed: %s", id, err)
@@ -1587,10 +1587,13 @@ func gpuProducer(id int, wg *sync.WaitGroup, hasher *gpumetal.Hasher, chunksPerD
 		// at chunk startChunk+chunkOffset, linear offset step, variant v.
 		nCand := binary.LittleEndian.Uint32(mcountBytes[:4])
 		if int(nCand) > baseCount {
-			nCand = uint32(baseCount)
+			log.Fatalf("GPU candidate buffer overflow: %d candidates exceed %d slots; range is incomplete", nCand, baseCount)
 		}
 		for i := uint32(0); i < nCand; i++ {
 			id := int(binary.LittleEndian.Uint32(mdataBytes[i*4 : i*4+4]))
+			if id >= keyCount {
+				log.Fatalf("GPU returned invalid candidate id %d (key count %d); range is incomplete", id, keyCount)
+			}
 			v := id / baseCount   // GLV+negation variant in [0, endoFactor)
 			gid := id % baseCount // base pubkey index within the dispatch
 			chunkOff := gid / chunkSteps
@@ -1884,90 +1887,238 @@ func calibrateCPUKeysPerSec(d time.Duration, threads int) float64 {
 	return float64(atomic.LoadUint64(&counter)) / time.Since(start).Seconds()
 }
 
-// calibrateGPUKeysPerSec measures the production GPU pipeline (host CPU EC-walk
-// base-pubkey fill + on-device GLV expansion + Hash160 + Bloom probe, no target
-// scan) across `producers` producers for d. It mirrors gpuProducer exactly — same
-// per-sub-batch fill, same GLVFilterStream dispatch — so --gpu=auto compares the
-// REAL production path against the CPU. Producers walk disjoint throwaway chunk
-// ranges and use a zeroed Bloom filter (every probe misses, so the kernel does the
-// full per-key work but compacts nothing), isolating the fill + GLV + hash cost.
-func calibrateGPUKeysPerSec(d time.Duration, hasher *gpumetal.Hasher, producers, chunksPerDispatch int) float64 {
-	var counter uint64
-	stop := make(chan struct{})
-	var wg sync.WaitGroup
-	subBatchesPerChunk := chunkBatches
-	subBatches := chunksPerDispatch * subBatchesPerChunk
-	baseCount := subBatches * keyBatchSize
-	keyCount := baseCount * endoFactor
+// gpuCalibrationSession keeps setup, shader/queue warmup and resource cleanup
+// outside every sample. autoTuneGPU reuses these resources across configurations.
+// Its shared Bloom uses 65,536 deterministic synthetic target digests: the
+// production builder yields a 256 KiB table with k=22 and about 50% occupancy.
+// This exercises populated-filter probes and rare confirmations, rather than
+// the single-probe shortcut of a zero table. Actual target sets may differ.
+type gpuCalibrationSession struct {
+	hasher    *gpumetal.Hasher
+	bloom     *gpumetal.Buffer
+	bf        *bloomFilter
+	targets   hash160Set
+	workers   []*gpuCalibrationWorker
+	maxChunks int
+	nextChunk uint64
+}
 
-	// A representative zeroed Bloom filter (1<<20 bits, k=20) so the probe memory
-	// pattern matches production; nothing matches, so no compaction occurs.
-	const calibBloomBits = 1 << 20
-	const calibBloomMask = calibBloomBits - 1
-	const calibBloomK = 20
+type gpuCalibrationWorker struct {
+	in, mcount, mdata *gpumetal.Buffer
+	stream            *gpumetal.Stream
+	ks                *keyStream
+	input, count, ids []byte
+	completed         uint64
+	err               error
+}
 
+func newGPUCalibrationSession(hasher *gpumetal.Hasher, producers, maxChunks int) (*gpuCalibrationSession, error) {
+	if hasher == nil || producers < 1 || maxChunks < 1 || maxChunks > int(^uint(0)>>1)/(chunkSteps*pubStride) {
+		return nil, fmt.Errorf("invalid GPU calibration configuration: producers=%d chunks=%d", producers, maxChunks)
+	}
+	s := &gpuCalibrationSession{hasher: hasher, maxChunks: maxChunks, targets: make(hash160Set, 65536)}
+	success := false
+	defer func() {
+		if !success {
+			s.close()
+		}
+	}()
+	for i := uint64(0); i < 65536; i++ {
+		var input [16]byte
+		copy(input[:8], "gpu-perf")
+		binary.LittleEndian.PutUint64(input[8:], i)
+		digest := sha256simd.Sum256(input[:])
+		var target [20]byte
+		copy(target[:], digest[:])
+		s.targets[target] = struct{}{}
+	}
+	s.bf = newBloomFromTargets(s.targets, gpuBloomFPR)
+	var err error
+	if s.bloom, err = hasher.NewBuffer(s.bf.byteLen()); err != nil {
+		return nil, fmt.Errorf("calibration Bloom allocation: %w", err)
+	}
+	s.bf.writeTo(s.bloom.Bytes())
+	baseCount := maxChunks * chunkSteps
 	for i := 0; i < producers; i++ {
-		wg.Add(1)
-		go func(pid int) {
-			defer wg.Done()
-			in, err := hasher.NewBuffer(subBatches * gpuSubBatchBaseBytes)
-			if err != nil {
-				return
+		p := &gpuCalibrationWorker{ks: newKeyStreamForGPU()}
+		s.workers = append(s.workers, p) // include partial allocations in cleanup
+		if p.in, err = hasher.NewBuffer(baseCount * pubStride); err != nil {
+			return nil, fmt.Errorf("calibration producer %d input allocation: %w", i, err)
+		}
+		if p.mcount, err = hasher.NewBuffer(16); err != nil {
+			return nil, fmt.Errorf("calibration producer %d count allocation: %w", i, err)
+		}
+		if p.mdata, err = hasher.NewBuffer(baseCount * 4); err != nil {
+			return nil, fmt.Errorf("calibration producer %d candidate allocation: %w", i, err)
+		}
+		if p.stream, err = hasher.NewStream(); err != nil {
+			return nil, fmt.Errorf("calibration producer %d stream allocation: %w", i, err)
+		}
+		p.input, p.count, p.ids = p.in.Bytes(), p.mcount.Bytes(), p.mdata.Bytes()
+	}
+	// Compile the kernel and warm every persistent queue before timing starts.
+	var warm sync.WaitGroup
+	for i, p := range s.workers {
+		warm.Add(1)
+		go func(i int, p *gpuCalibrationWorker) {
+			defer warm.Done()
+			p.err = s.scan(p, uint64(i*maxChunks), maxChunks)
+		}(i, p)
+	}
+	warm.Wait()
+	for i, p := range s.workers {
+		if p.err != nil {
+			return nil, fmt.Errorf("calibration producer %d warmup: %w", i, p.err)
+		}
+	}
+	s.nextChunk = uint64(producers) * uint64(maxChunks)
+	success = true
+	return s, nil
+}
+
+func (s *gpuCalibrationSession) close() {
+	for _, p := range s.workers {
+		if p.stream != nil {
+			p.stream.Free()
+		}
+		for _, buf := range []*gpumetal.Buffer{p.mdata, p.mcount, p.in} {
+			if buf != nil {
+				buf.Free()
 			}
-			defer in.Free()
-			bloom, err := hasher.NewBuffer(calibBloomBits / 8)
-			if err != nil {
-				return
-			}
-			defer bloom.Free()
-			mcount, err := hasher.NewBuffer(16)
-			if err != nil {
-				return
-			}
-			defer mcount.Free()
-			mdata, err := hasher.NewBuffer(baseCount * 4)
-			if err != nil {
-				return
-			}
-			defer mdata.Free()
-			stream, err := hasher.NewStream()
-			if err != nil {
-				return
-			}
-			defer stream.Free()
-			inBytes := in.Bytes()
-			mcountBytes := mcount.Bytes()
-			ks := newKeyStreamForGPU()
-			chunk := uint64(pid) * uint64(chunksPerDispatch)
-			stride := uint64(producers) * uint64(chunksPerDispatch)
+		}
+	}
+	if s.bloom != nil {
+		s.bloom.Free()
+	}
+}
+
+func (s *gpuCalibrationSession) scan(p *gpuCalibrationWorker, start uint64, chunks int) error {
+	for k := 0; k < chunks; k++ {
+		p.ks.setBase(chunkBaseSeed(start + uint64(k)))
+		for batch := 0; batch < chunkBatches; batch++ {
+			offset := (k*chunkBatches + batch) * gpuSubBatchBaseBytes
+			p.ks.pubBuf = p.input[offset : offset+gpuSubBatchBaseBytes]
+			p.ks.fillBasePubkeysSteps(keyBatchSize)
+		}
+	}
+	baseCount := chunks * chunkSteps
+	binary.LittleEndian.PutUint32(p.count[:4], 0)
+	if err := p.stream.GLVFilterStream(p.in, s.bloom, p.mcount, p.mdata, baseCount, pubStride, s.bf.mask, s.bf.k); err != nil {
+		return err
+	}
+	n := int(binary.LittleEndian.Uint32(p.count[:4]))
+	if n > baseCount {
+		return fmt.Errorf("candidate counter %d exceeds capacity %d", n, baseCount)
+	}
+	for i := 0; i < n; i++ {
+		id := int(binary.LittleEndian.Uint32(p.ids[i*4 : i*4+4]))
+		if id >= baseCount*endoFactor {
+			return fmt.Errorf("candidate id %d exceeds key count %d", id, baseCount*endoFactor)
+		}
+		variant, gid := id/baseCount, id%baseCount
+		priv := privateKeyForVariantFromBase(chunkBaseSeed(start+uint64(gid/chunkSteps)), uint64(gid%chunkSteps), variant)
+		var digest [20]byte
+		copy(digest[:], btcutil.Hash160(priv.PubKey().SerializeCompressed()))
+		if _, found := s.targets[digest]; found {
+			return fmt.Errorf("synthetic calibration target unexpectedly matches candidate %d", id)
+		}
+	}
+	return nil
+}
+
+func (s *gpuCalibrationSession) measure(d time.Duration, chunks int) (float64, error) {
+	if d <= 0 || chunks < 1 || chunks > s.maxChunks {
+		return 0, fmt.Errorf("invalid calibration sample: duration=%s chunks=%d", d, chunks)
+	}
+	tracker := newFrontierTracker(s.nextChunk)
+	start := make(chan struct{})
+	stop := make(chan struct{})
+	failed := make(chan struct{}, 1)
+	var ready, done sync.WaitGroup
+	var checked uint64
+	keyCount := uint64(chunks) * uint64(chunkSteps*endoFactor)
+	ready.Add(len(s.workers))
+	done.Add(len(s.workers))
+	for _, p := range s.workers {
+		p.completed, p.err = 0, nil
+		go func(p *gpuCalibrationWorker) {
+			defer done.Done()
+			ready.Done()
+			<-start
 			for {
 				select {
 				case <-stop:
 					return
 				default:
 				}
-				for k := 0; k < chunksPerDispatch; k++ {
-					ks.setBase(chunkBaseSeed(chunk + uint64(k)))
-					for b := 0; b < subBatchesPerChunk; b++ {
-						sub := k*subBatchesPerChunk + b
-						ks.pubBuf = inBytes[sub*gpuSubBatchBaseBytes : sub*gpuSubBatchBaseBytes+gpuSubBatchBaseBytes]
-						ks.fillBasePubkeysSteps(keyBatchSize)
+				chunk := tracker.claim(uint64(chunks))
+				if p.err = s.scan(p, chunk, chunks); p.err != nil {
+					select {
+					case failed <- struct{}{}:
+					default:
 					}
-				}
-				binary.LittleEndian.PutUint32(mcountBytes[:4], 0)
-				if err := stream.GLVFilterStream(in, bloom, mcount, mdata, baseCount, pubStride, calibBloomMask, calibBloomK); err != nil {
 					return
 				}
-				atomic.AddUint64(&counter, uint64(keyCount))
-				chunk += stride
+				atomic.AddUint64(&checked, keyCount)
+				tracker.complete(chunk, uint64(chunks))
+				p.completed++
 			}
-		}(i)
+		}(p)
 	}
-	start := time.Now()
-	time.Sleep(d)
+	ready.Wait()
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	t0 := time.Now()
+	close(start)
+	select {
+	case <-timer.C:
+	case <-failed:
+	}
 	close(stop)
-	wg.Wait()
-	return float64(atomic.LoadUint64(&counter)) / time.Since(start).Seconds()
+	done.Wait() // include every in-flight fill/dispatch in both count and time
+	elapsed := time.Since(t0)
+	var dispatches uint64
+	for i, p := range s.workers {
+		if p.err != nil {
+			return 0, fmt.Errorf("calibration producer %d: %w", i, p.err)
+		}
+		if p.completed == 0 {
+			return 0, fmt.Errorf("calibration producer %d completed no dispatches", i)
+		}
+		dispatches += p.completed
+	}
+	want := dispatches * keyCount
+	frontier := s.nextChunk + dispatches*uint64(chunks)
+	if atomic.LoadUint64(&checked) != want || tracker.frontierChunk() != frontier {
+		return 0, fmt.Errorf("calibration completion mismatch: checked=%d want=%d frontier=%d want=%d", atomic.LoadUint64(&checked), want, tracker.frontierChunk(), frontier)
+	}
+	s.nextChunk = frontier
+	return float64(want) / elapsed.Seconds(), nil
+}
+
+// calibrateGPUKeysPerSec measures CPU fill, concurrent GPU GLV+Hash160+populated
+// Bloom, readback, rare CPU confirmations and frontier/counter updates for d.
+// Setup, queue warmup and cleanup are excluded. The timer includes draining all
+// in-flight dispatches, whose exact key counts are included in the numerator.
+// Every requested producer must complete work; any error rejects the whole
+// sample (logged and returned as zero), avoiding plausible partial-cohort rates.
+func calibrateGPUKeysPerSec(d time.Duration, hasher *gpumetal.Hasher, producers, chunksPerDispatch int) float64 {
+	if d <= 0 {
+		log.Printf("GPU calibration rejected: invalid sample duration %s", d)
+		return 0
+	}
+	s, err := newGPUCalibrationSession(hasher, producers, chunksPerDispatch)
+	if err != nil {
+		log.Printf("GPU calibration rejected: %v", err)
+		return 0
+	}
+	defer s.close()
+	rate, err := s.measure(d, chunksPerDispatch)
+	if err != nil {
+		log.Printf("GPU calibration rejected: %v", err)
+		return 0
+	}
+	return rate
 }
 
 // ============================================================================
@@ -2496,7 +2647,8 @@ func main() {
 // dispatch parameters actually used (chunks/dispatch and threadgroup), which auto
 // mode may refine per device. In auto mode it runs the bit-exact self-test, a
 // short per-device tune (threadgroup + chunks), and a CPU/GPU calibration, then
-// picks the faster backend — guaranteeing no regression below the CPU path. In
+// picks the faster observed backend. Short startup samples cannot guarantee
+// sustained performance under later thermal/background load. In
 // on mode the env/default parameters are applied as-is and any failure is fatal;
 // in off mode the GPU is skipped.
 func selectBackend(mode string, numThreads, gpuProducers, gpuChunksPerDispatch, gpuThreadgroup int) (bool, *gpumetal.Hasher, int, int) {
@@ -2554,51 +2706,118 @@ func selectBackend(mode string, numThreads, gpuProducers, gpuChunksPerDispatch, 
 	return false, nil, gpuChunksPerDispatch, gpuThreadgroup
 }
 
-// autoTuneGPU micro-sweeps the GPU dispatch parameters on the current device and
-// returns the best (chunks/dispatch, threadgroup) and its measured rate. It
-// searches a small grid centered on the caller's starting values: threadgroups
-// {startTG, 256, 384, 512} x chunks {startChunks, 3, 4, 6}, each measured with
-// the REAL production path (calibrateGPUKeysPerSec: CPU fill + GLVFilterStream),
-// so the winner is the configuration the run will actually use.
-//
-// The known-good default (startTG, startChunks) is measured first and becomes the
-// incumbent, and each grid point is scored as the MAX of two short samples (max
-// rejects transient downward noise better than a single window), so a noisy
-// sample can't knock the tune off a good configuration. A short warm-up first
-// settles the GPU clocks so the first grid point is not penalized.
+// autoTuneGPU uses a coordinate search: tune threadgroup at startChunks, then
+// chunks at the chosen threadgroup. Persistent, warmed queues and a shared
+// populated synthetic Bloom are reused; allocation/compilation/cleanup do not
+// affect sample rates. Alternating incumbent/candidate confirmations reduce
+// ordering effects, and their medians must show at least 3% improvement before
+// changing the starting configuration. These short observations guide startup
+// selection; they cannot guarantee sustained performance under later load.
 func autoTuneGPU(hasher *gpumetal.Hasher, producers, startChunks, startTG int) (bestChunks, bestTG int, bestRate float64) {
-	fmt.Printf("Tuning GPU for this device (~3s)...\n")
-
-	// Default-first ordering so the measured-best default is the incumbent.
-	tgCandidates := dedupeInts([]int{startTG, 384, 256, 512})
-	chunkCandidates := dedupeInts([]int{startChunks, 4, 3, 6})
-
-	// Warm-up so the device is at steady clocks before the first timed point.
-	hasher.SetThreadgroup(startTG)
-	_ = calibrateGPUKeysPerSec(300*time.Millisecond, hasher, producers, startChunks)
-
-	measure := func(ch, tg int) float64 {
-		hasher.SetThreadgroup(tg)
-		r := calibrateGPUKeysPerSec(180*time.Millisecond, hasher, producers, ch)
-		if r2 := calibrateGPUKeysPerSec(180*time.Millisecond, hasher, producers, ch); r2 > r {
-			r = r2
-		}
-		return r
-	}
-
+	fmt.Printf("Tuning GPU (about 2–3s of samples, plus setup and queue drain)...\n")
 	bestChunks, bestTG = startChunks, startTG
-	bestRate = measure(startChunks, startTG)
+	tgCandidates := []int{startTG} // retain 0, which explicitly requests auto
+	for _, tg := range []int{384, 256, 512} {
+		if tg != startTG {
+			tgCandidates = append(tgCandidates, tg)
+		}
+	}
+	chunkCandidates := dedupeInts([]int{startChunks, 4, 3, 6})
+	maxChunks := startChunks
+	for _, chunks := range chunkCandidates {
+		if chunks > maxChunks {
+			maxChunks = chunks
+		}
+	}
+	hasher.SetThreadgroup(startTG)
+	s, err := newGPUCalibrationSession(hasher, producers, maxChunks)
+	if err != nil {
+		log.Printf("GPU tuning rejected: %v", err)
+		return startChunks, startTG, 0
+	}
+	defer s.close()
+	measure := func(ch, tg int, window time.Duration) (float64, bool) {
+		hasher.SetThreadgroup(tg)
+		rate, err := s.measure(window, ch)
+		if err != nil {
+			log.Printf("GPU tuning rejected (%d chunks, TG %d): %v", ch, tg, err)
+			return 0, false
+		}
+		return rate, true
+	}
+	const exploration = 150 * time.Millisecond
 	for _, tg := range tgCandidates {
-		for _, ch := range chunkCandidates {
-			if tg == startTG && ch == startChunks {
-				continue // already measured as the incumbent
+		rate, ok := measure(startChunks, tg, exploration)
+		if !ok {
+			return startChunks, startTG, 0
+		}
+		if rate > bestRate {
+			bestRate, bestTG = rate, tg
+		}
+	}
+	for _, chunks := range chunkCandidates {
+		if chunks == startChunks {
+			continue // already measured at the chosen TG
+		}
+		rate, ok := measure(chunks, bestTG, exploration)
+		if !ok {
+			return startChunks, startTG, 0
+		}
+		if rate > bestRate {
+			bestRate, bestChunks = rate, chunks
+		}
+	}
+
+	var incumbent, candidate [3]float64
+	changed := bestChunks != startChunks || bestTG != startTG
+	const confirmation = 200 * time.Millisecond
+	for i := range incumbent {
+		// Reverse pair ordering every round to expose clock/thermal drift.
+		if changed && i%2 == 1 {
+			var ok bool
+			candidate[i], ok = measure(bestChunks, bestTG, confirmation)
+			if !ok {
+				return startChunks, startTG, 0
 			}
-			if r := measure(ch, tg); r > bestRate {
-				bestRate, bestChunks, bestTG = r, ch, tg
+		}
+		var ok bool
+		incumbent[i], ok = measure(startChunks, startTG, confirmation)
+		if !ok {
+			return startChunks, startTG, 0
+		}
+		if changed && i%2 == 0 {
+			candidate[i], ok = measure(bestChunks, bestTG, confirmation)
+			if !ok {
+				return startChunks, startTG, 0
 			}
 		}
 	}
+	incumbentRate := gpuCalibrationMedian3(incumbent)
+	if changed {
+		candidateRate := gpuCalibrationMedian3(candidate)
+		if candidateRate >= incumbentRate*1.03 {
+			bestRate = candidateRate
+		} else {
+			bestChunks, bestTG, bestRate = startChunks, startTG, incumbentRate
+		}
+	} else {
+		bestRate = incumbentRate
+	}
+	hasher.SetThreadgroup(bestTG)
 	return bestChunks, bestTG, bestRate
+}
+
+func gpuCalibrationMedian3(v [3]float64) float64 {
+	if v[0] > v[1] {
+		v[0], v[1] = v[1], v[0]
+	}
+	if v[1] > v[2] {
+		v[1], v[2] = v[2], v[1]
+	}
+	if v[0] > v[1] {
+		v[0], v[1] = v[1], v[0]
+	}
+	return v[1]
 }
 
 // dedupeInts returns vs with non-positive and duplicate values removed, order

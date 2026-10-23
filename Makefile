@@ -1,4 +1,4 @@
-.PHONY: build build-native build-cpu run-example resume-example bench bench-gpu bench-subs bench-local bench-scan test-subs docker-build clean test test-gpu vet lint all
+.PHONY: build build-native build-cpu run-example resume-example bench bench-gpu bench-gpu-scan bench-subs bench-local bench-scan test-subs docker-build clean test test-gpu vet lint all
 
 # Binary name
 BINARY_NAME=btc-brute-force
@@ -69,6 +69,10 @@ bench:
 bench-gpu:
 	@echo "Benchmarking GPU vs CPU Hash160 (Apple Metal)..."
 	@go test -ldflags="$(LDFLAGS)" -run '^$$' -bench 'Benchmark(GPU|CPU)Hash160' -benchtime=2s ./gpu/metal/
+
+# Synthetic hybrid scan and populated-Bloom dispatch; configure with BTC_BENCH_GPU_*.
+bench-gpu-scan:
+	@GOMAXPROCS=$(THREADS) $(LOCAL_GO) test -pgo=off -ldflags="$(LDFLAGS)" -run '^$$' -bench '^Benchmark(HybridGPUScan|GPUDispatch)$$' -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT) -cpu=$(THREADS) .
 
 # The local sibling modules are separate packages: go test ./... at the root
 # does not include them. Keep measurements sequential to avoid CPU contention.

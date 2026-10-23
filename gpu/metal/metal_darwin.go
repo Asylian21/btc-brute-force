@@ -27,6 +27,7 @@ import "C"
 
 import (
 	_ "embed"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"runtime"
@@ -249,7 +250,6 @@ func (h *Hasher) dispatchOn(queue unsafe.Pointer, lock bool, pipelineName string
 		scalarsPtr = (*C.uint32_t)(unsafe.Pointer(&scalars[0]))
 	}
 
-	runtime.LockOSThread()
 	if lock {
 		h.mu.Lock()
 	}
@@ -260,7 +260,6 @@ func (h *Hasher) dispatchOn(queue unsafe.Pointer, lock bool, pipelineName string
 	if lock {
 		h.mu.Unlock()
 	}
-	runtime.UnlockOSThread()
 
 	// Keep handles alive across the cgo call (defensive; cgo already pins args).
 	runtime.KeepAlive(handles)
@@ -278,8 +277,9 @@ func (h *Hasher) dispatchOn(queue unsafe.Pointer, lock bool, pipelineName string
 // submitted from several producers instead of running one serialized dispatch at
 // a time. A Stream is NOT safe for concurrent use by multiple goroutines.
 type Stream struct {
-	h *Hasher
-	q unsafe.Pointer
+	h       *Hasher
+	q       unsafe.Pointer
+	glvPipe unsafe.Pointer // Hasher-owned; this single-goroutine stream caches lookup.
 }
 
 // NewStream creates a command queue for one producer goroutine.
@@ -328,6 +328,9 @@ func (s *Stream) Hash160FilterStream(in, bloom, mcount, mdata *Buffer, count, st
 // both GLVFilter and GLVFilterStream. count is the number of base pubkeys (walk
 // steps); the kernel expands each into 6 GLV+negation variants internally.
 func glvFilterArgs(in, mcount, mdata *Buffer, count, stride int) error {
+	if in == nil || mcount == nil || mdata == nil {
+		return errors.New("metal: GLV filter: nil input, counter, or candidate buffer")
+	}
 	if stride < 33 {
 		return fmt.Errorf("metal: stride %d too small (need >= 33)", stride)
 	}
@@ -343,6 +346,18 @@ func glvFilterArgs(in, mcount, mdata *Buffer, count, stride int) error {
 	return nil
 }
 
+// glvFilterResult rejects a dispatch whose compacted candidates did not fit in
+// the count-slot output contract. The kernel increments mcount for all six
+// variants but caps output writes at count, so accepting a truncated list would
+// silently drop matches when a Bloom filter is saturated or unusually dense.
+func glvFilterResult(mcount *Buffer, count int) error {
+	candidates := binary.LittleEndian.Uint32(mcount.data[:4])
+	if uint64(candidates) > uint64(count) {
+		return fmt.Errorf("metal: GLV candidate buffer overflow: have %d candidates, capacity %d", candidates, count)
+	}
+	return nil
+}
+
 // GLVFilter expands count base pubkeys from in (stride bytes each, first 33 =
 // prefix+X) into their 6 GLV+negation variants on the GPU, hashes each, and
 // tests it against the device Bloom filter. For every probe hit it appends the
@@ -353,6 +368,8 @@ func glvFilterArgs(in, mcount, mdata *Buffer, count, stride int) error {
 // reconstructs the private key with the existing privateKeyForVariantFromBase
 // (v=id/count, p=id%count). The caller confirms each candidate against the real
 // target set; the Bloom filter only accelerates (zero false negatives).
+// If more than count candidates are found, this returns an error because the
+// output list is incomplete; callers must not accept or advance past that batch.
 //
 // Kernel argument order (glv_filter_kernel): buffer(0)=bases, buffer(1)=bloom,
 // buffer(2)=mcount, buffer(3)=mdata, then scalars stride, count, mask, k.
@@ -363,10 +380,13 @@ func (h *Hasher) GLVFilter(in, bloom, mcount, mdata *Buffer, count, stride int, 
 	if err := glvFilterArgs(in, mcount, mdata, count, stride); err != nil {
 		return err
 	}
-	return h.dispatch("glv_filter_kernel",
+	if err := h.dispatch("glv_filter_kernel",
 		[]*Buffer{in, bloom, mcount, mdata},
 		[]uint32{uint32(stride), uint32(count), mask, k},
-		count)
+		count); err != nil {
+		return err
+	}
+	return glvFilterResult(mcount, count)
 }
 
 // GLVFilterStream is GLVFilter dispatched on this stream's own queue (no global
@@ -379,10 +399,32 @@ func (s *Stream) GLVFilterStream(in, bloom, mcount, mdata *Buffer, count, stride
 	if err := glvFilterArgs(in, mcount, mdata, count, stride); err != nil {
 		return err
 	}
-	return s.h.dispatchOn(s.q, false, "glv_filter_kernel",
-		[]*Buffer{in, bloom, mcount, mdata},
-		[]uint32{uint32(stride), uint32(count), mask, k},
-		count)
+	if s.glvPipe == nil {
+		pipe, err := s.h.pipeline("glv_filter_kernel")
+		if err != nil {
+			return err
+		}
+		s.glvPipe = pipe
+	}
+	for i, b := range [4]*Buffer{in, bloom, mcount, mdata} {
+		if b == nil || b.b.buf == nil {
+			return fmt.Errorf("metal: dispatch glv_filter_kernel: nil buffer at index %d", i)
+		}
+	}
+	// All Objective-C work, including its autorelease pool, is contained in this
+	// one synchronous C call. No per-thread state crosses a Go scheduling point,
+	// so runtime.LockOSThread would only add scheduler bookkeeping here.
+	rc := C.mh_dispatch_filter(s.h.ctx, s.q, s.glvPipe,
+		in.b.buf, bloom.b.buf, mcount.b.buf, mdata.b.buf,
+		C.uint32_t(stride), C.uint32_t(count), C.uint32_t(mask), C.uint32_t(k))
+	runtime.KeepAlive(in)
+	runtime.KeepAlive(bloom)
+	runtime.KeepAlive(mcount)
+	runtime.KeepAlive(mdata)
+	if rc != 0 {
+		return fmt.Errorf("metal: dispatch glv_filter_kernel failed (code %d)", int(rc))
+	}
+	return glvFilterResult(mcount, count)
 }
 
 // ECWalkBatch is the per-thread linear walk batch length: each ec_walk_glv_kernel

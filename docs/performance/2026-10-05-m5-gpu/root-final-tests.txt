@@ -1,0 +1,157 @@
+=== RUN   TestKeyStreamMatchesReference
+--- PASS: TestKeyStreamMatchesReference (0.00s)
+=== RUN   TestKeyStreamAllVariants
+--- PASS: TestKeyStreamAllVariants (0.01s)
+=== RUN   TestKeyStreamContinuity
+--- PASS: TestKeyStreamContinuity (0.00s)
+=== RUN   TestFillBasePubkeysSteps
+--- PASS: TestFillBasePubkeysSteps (0.00s)
+=== RUN   TestEndomorphismConstants
+--- PASS: TestEndomorphismConstants (0.00s)
+=== RUN   TestReadTargetHashes
+--- PASS: TestReadTargetHashes (0.00s)
+=== RUN   TestReadTargetHashesEmptyFile
+--- PASS: TestReadTargetHashesEmptyFile (0.00s)
+=== RUN   TestReadTargetHashesNonexistentFile
+--- PASS: TestReadTargetHashesNonexistentFile (0.00s)
+=== RUN   TestGenerateKeyAndHash160
+--- PASS: TestGenerateKeyAndHash160 (0.00s)
+=== RUN   TestGenerateKeyAndHash160Unique
+--- PASS: TestGenerateKeyAndHash160Unique (0.00s)
+=== RUN   TestBufferPool
+--- PASS: TestBufferPool (0.00s)
+=== RUN   TestBloomNoFalseNegatives
+--- PASS: TestBloomNoFalseNegatives (0.00s)
+=== RUN   TestBloomFalsePositiveRate
+    bloom_test.go:61: bloom: n=20000 m=1048576 bits k=32 -> observed FPR 0.00e+00 (0/200000)
+--- PASS: TestBloomFalsePositiveRate (0.01s)
+=== RUN   TestBloomDeterministicHashes
+--- PASS: TestBloomDeterministicHashes (0.00s)
+=== RUN   TestBloomSizing
+--- PASS: TestBloomSizing (0.00s)
+=== RUN   TestParsePrivateKeyHex
+=== RUN   TestParsePrivateKeyHex/valid_64
+=== RUN   TestParsePrivateKeyHex/valid_key_1
+=== RUN   TestParsePrivateKeyHex/odd_length_65
+=== RUN   TestParsePrivateKeyHex/too_short
+=== RUN   TestParsePrivateKeyHex/empty
+=== RUN   TestParsePrivateKeyHex/bad_hex_char
+--- PASS: TestParsePrivateKeyHex (0.00s)
+    --- PASS: TestParsePrivateKeyHex/valid_64 (0.00s)
+    --- PASS: TestParsePrivateKeyHex/valid_key_1 (0.00s)
+    --- PASS: TestParsePrivateKeyHex/odd_length_65 (0.00s)
+    --- PASS: TestParsePrivateKeyHex/too_short (0.00s)
+    --- PASS: TestParsePrivateKeyHex/empty (0.00s)
+    --- PASS: TestParsePrivateKeyHex/bad_hex_char (0.00s)
+=== RUN   TestLinearOffsetFromKeys
+--- PASS: TestLinearOffsetFromKeys (0.00s)
+=== RUN   TestWriteReadCheckpointRoundTrip
+--- PASS: TestWriteReadCheckpointRoundTrip (0.00s)
+=== RUN   TestResumeWithExplicitStartKey
+--- PASS: TestResumeWithExplicitStartKey (0.00s)
+=== RUN   TestResumeNoStartKeyReanchorsFarKey
+--- PASS: TestResumeNoStartKeyReanchorsFarKey (0.00s)
+=== RUN   TestResumeNoStartKeyLegacySmallKey
+--- PASS: TestResumeNoStartKeyLegacySmallKey (0.00s)
+=== RUN   TestResumeStartChunkFloorsToBoundary
+--- PASS: TestResumeStartChunkFloorsToBoundary (0.00s)
+=== RUN   TestResumeRejectsInvalidKeys
+--- PASS: TestResumeRejectsInvalidKeys (0.00s)
+=== RUN   TestReadCheckpointErrors
+--- PASS: TestReadCheckpointErrors (0.00s)
+=== RUN   TestCheckpointResumeContinuity
+--- PASS: TestCheckpointResumeContinuity (0.00s)
+=== RUN   TestFrontierTrackerInOrder
+--- PASS: TestFrontierTrackerInOrder (0.00s)
+=== RUN   TestFrontierTrackerOutOfOrder
+--- PASS: TestFrontierTrackerOutOfOrder (0.00s)
+=== RUN   TestFrontierTrackerStartOffset
+--- PASS: TestFrontierTrackerStartOffset (0.00s)
+=== RUN   TestFrontierTrackerConcurrentClaims
+--- PASS: TestFrontierTrackerConcurrentClaims (0.00s)
+=== RUN   TestFrontierTrackerPartialThenGap
+--- PASS: TestFrontierTrackerPartialThenGap (0.00s)
+=== RUN   TestGPUCalibrationSessionReuse
+--- PASS: TestGPUCalibrationSessionReuse (0.05s)
+=== RUN   TestGPUCalibrationRejectsInvalidConfiguration
+=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/nil_hasher
+=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/zero_producers
+=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/negative_producers
+=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/zero_chunks
+=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/negative_chunks
+=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/overflowing_chunks
+=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/zero_duration
+=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/negative_duration
+=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/zero_sample_chunks
+=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/negative_sample_chunks
+=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/sample_exceeds_allocation
+--- PASS: TestGPUCalibrationRejectsInvalidConfiguration (0.00s)
+    --- PASS: TestGPUCalibrationRejectsInvalidConfiguration/nil_hasher (0.00s)
+    --- PASS: TestGPUCalibrationRejectsInvalidConfiguration/zero_producers (0.00s)
+    --- PASS: TestGPUCalibrationRejectsInvalidConfiguration/negative_producers (0.00s)
+    --- PASS: TestGPUCalibrationRejectsInvalidConfiguration/zero_chunks (0.00s)
+    --- PASS: TestGPUCalibrationRejectsInvalidConfiguration/negative_chunks (0.00s)
+    --- PASS: TestGPUCalibrationRejectsInvalidConfiguration/overflowing_chunks (0.00s)
+    --- PASS: TestGPUCalibrationRejectsInvalidConfiguration/zero_duration (0.00s)
+    --- PASS: TestGPUCalibrationRejectsInvalidConfiguration/negative_duration (0.00s)
+    --- PASS: TestGPUCalibrationRejectsInvalidConfiguration/zero_sample_chunks (0.00s)
+    --- PASS: TestGPUCalibrationRejectsInvalidConfiguration/negative_sample_chunks (0.00s)
+    --- PASS: TestGPUCalibrationRejectsInvalidConfiguration/sample_exceeds_allocation (0.00s)
+=== RUN   TestGPUCalibrationMedian3
+--- PASS: TestGPUCalibrationMedian3 (0.00s)
+=== RUN   TestGPUAutoTuneSelection
+Tuning GPU (about 2–3s of samples, plus setup and queue drain)...
+    gpu_calibration_test.go:155: completed coordinate search and confirmations: chunks=4 TG=384 139.8 M hashes/s (liveness check)
+--- PASS: TestGPUAutoTuneSelection (2.34s)
+=== RUN   TestGPUSelfTestGate
+--- PASS: TestGPUSelfTestGate (0.16s)
+=== RUN   TestGPUEndToEndPipeline
+
+*** MATCH FOUND! ***
+0000000000000000000000000000000000000000000000000000000000000065:1NDTiygBwjhUwsK9n9qJqrKitDURg4csxP
+
+
+*** MATCH FOUND! ***
+5938a5667f479e3eb5b3c7faefdb374a965297126e45d34a01cd319499eec65d:1C2VVTbddYnXxTQtzNvLNBn1LCPA34Smn7
+
+    gpu_ecwalk_test.go:120: end-to-end: both planted targets found (base + GLV variant), frontier=2, keys counted=196608
+--- PASS: TestGPUEndToEndPipeline (0.01s)
+=== RUN   TestGPUECWalkSelfTest
+--- PASS: TestGPUECWalkSelfTest (1.73s)
+=== RUN   TestGPUCalibrationSanity
+    gpu_ecwalk_test.go:166: calibration A/B (18 producers, 6 chunks/dispatch): GPU=573.4 M keys/s, CPU=261.0 M keys/s, ratio=2.20x
+--- PASS: TestGPUCalibrationSanity (0.66s)
+=== RUN   TestGPUProductionSweep
+    gpu_ecwalk_test.go:191: producers=4  chunks/dispatch=3   ->  211.8 M keys/s
+    gpu_ecwalk_test.go:191: producers=4  chunks/dispatch=6   ->  214.8 M keys/s
+    gpu_ecwalk_test.go:191: producers=4  chunks/dispatch=12  ->  221.4 M keys/s
+    gpu_ecwalk_test.go:191: producers=4  chunks/dispatch=24  ->  232.6 M keys/s
+    gpu_ecwalk_test.go:191: producers=8  chunks/dispatch=3   ->  463.8 M keys/s
+    gpu_ecwalk_test.go:191: producers=8  chunks/dispatch=6   ->  432.1 M keys/s
+    gpu_ecwalk_test.go:191: producers=8  chunks/dispatch=12  ->  388.6 M keys/s
+    gpu_ecwalk_test.go:191: producers=8  chunks/dispatch=24  ->  414.9 M keys/s
+    gpu_ecwalk_test.go:191: producers=12 chunks/dispatch=3   ->  615.7 M keys/s
+    gpu_ecwalk_test.go:191: producers=12 chunks/dispatch=6   ->  601.8 M keys/s
+    gpu_ecwalk_test.go:191: producers=12 chunks/dispatch=12  ->  500.2 M keys/s
+    gpu_ecwalk_test.go:191: producers=12 chunks/dispatch=24  ->  412.6 M keys/s
+--- PASS: TestGPUProductionSweep (3.79s)
+=== RUN   TestGPUWalkDispatchThroughput
+    gpu_ecwalk_test.go:254: chunks/dispatch=6   gthreads=768    keys/dispatch=589824   ->   41.0 M keys/s (pure GPU, 14.38 ms/dispatch)
+    gpu_ecwalk_test.go:254: chunks/dispatch=24  gthreads=3072   keys/dispatch=2359296  ->  158.9 M keys/s (pure GPU, 14.85 ms/dispatch)
+    gpu_ecwalk_test.go:254: chunks/dispatch=48  gthreads=6144   keys/dispatch=4718592  ->  274.0 M keys/s (pure GPU, 17.22 ms/dispatch)
+    gpu_ecwalk_test.go:254: chunks/dispatch=96  gthreads=12288  keys/dispatch=9437184  ->  311.9 M keys/s (pure GPU, 30.26 ms/dispatch)
+    gpu_ecwalk_test.go:254: chunks/dispatch=192 gthreads=24576  keys/dispatch=18874368 ->  480.6 M keys/s (pure GPU, 39.27 ms/dispatch)
+--- PASS: TestGPUWalkDispatchThroughput (2.09s)
+=== RUN   TestGPUECWalk
+    gpu_ecwalk_test.go:445: on-GPU EC walk over 128 threads x 128 batch = 16384 keys (98304 variants): 98304 candidates, 98304 confirmed, 0 false positives (k=30, 4194304 bits)
+--- PASS: TestGPUECWalk (6.91s)
+=== RUN   TestGPUBloomFilter
+    gpu_filter_test.go:127: GPU filter over 100000 keys: 1031 candidates, 1031 real targets, 0 false positives (FPR 0.00e+00, k=32, 65536 bits)
+--- PASS: TestGPUBloomFilter (0.86s)
+=== RUN   TestGPUGLVFilter
+    gpu_glv_test.go:152: GPU GLV filter over 12000 bases (72000 variants): 4236 candidates, 4236 real targets, 0 false positives (FPR 0.00e+00, k=21, 131072 bits)
+--- PASS: TestGPUGLVFilter (0.50s)
+=== RUN   TestGPUPerformanceFixture
+    gpu_performance_test.go:352: 64 base points, 384 independent hashes, 30 GPU candidates, 30 planted targets; Bloom 262144 bytes, k=22
+--- PASS: TestGPUPerformanceFixture (0.02s)
+PASS

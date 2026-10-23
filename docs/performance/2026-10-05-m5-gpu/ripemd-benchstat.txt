@@ -1,0 +1,71 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+                                                    │ .local-perf/20261005-gpu/ripemd-paired/before.txt │ .local-perf/20261005-gpu/ripemd-paired/after.txt │
+                                                    │                      sec/op                       │           sec/op            vs base              │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                         575.0µ ± 3%                  571.9µ ± 8%       ~ (p=0.699 n=6)
+GPUDispatch/p=18/chunks=4/tg=384/targets=65536-18                                           567.9µ ± 7%                  569.3µ ± 2%       ~ (p=0.699 n=6)
+geomean                                                                                     571.4µ                       570.6µ       -0.14%
+
+                                                    │ .local-perf/20261005-gpu/ripemd-paired/before.txt │ .local-perf/20261005-gpu/ripemd-paired/after.txt │
+                                                    │                    bloom_bytes                    │       bloom_bytes         vs base                │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                         262.1k ± 0%                262.1k ± 0%       ~ (p=1.000 n=6) ¹
+GPUDispatch/p=18/chunks=4/tg=384/targets=65536-18                                           262.1k ± 0%                262.1k ± 0%       ~ (p=1.000 n=6) ¹
+geomean                                                                                     262.1k                     262.1k       +0.00%
+¹ all samples are equal
+
+                                                    │ .local-perf/20261005-gpu/ripemd-paired/before.txt │ .local-perf/20261005-gpu/ripemd-paired/after.txt │
+                                                    │                bloom_occupancy_pct                │   bloom_occupancy_pct     vs base                │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                          49.72 ± 0%                 49.72 ± 0%       ~ (p=1.000 n=6) ¹
+GPUDispatch/p=18/chunks=4/tg=384/targets=65536-18                                            49.72 ± 0%                 49.72 ± 0%       ~ (p=1.000 n=6) ¹
+geomean                                                                                      49.72                      49.72       +0.00%
+¹ all samples are equal
+
+                                                    │ .local-perf/20261005-gpu/ripemd-paired/before.txt │ .local-perf/20261005-gpu/ripemd-paired/after.txt │
+                                                    │                   bloom_probes                    │       bloom_probes        vs base                │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                          22.00 ± 0%                 22.00 ± 0%       ~ (p=1.000 n=6) ¹
+GPUDispatch/p=18/chunks=4/tg=384/targets=65536-18                                            22.00 ± 0%                 22.00 ± 0%       ~ (p=1.000 n=6) ¹
+geomean                                                                                      22.00                      22.00       +0.00%
+¹ all samples are equal
+
+                                                    │ .local-perf/20261005-gpu/ripemd-paired/before.txt │ .local-perf/20261005-gpu/ripemd-paired/after.txt │
+                                                    │                candidates/dispatch                │    candidates/dispatch      vs base              │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                         167.5m ± 2%                  166.3m ± 1%       ~ (p=0.193 n=6)
+GPUDispatch/p=18/chunks=4/tg=384/targets=65536-18                                           278.0m ± 0%                  277.1m ± 1%       ~ (p=0.232 n=6)
+geomean                                                                                     215.8m                       214.7m       -0.54%
+
+                                                    │ .local-perf/20261005-gpu/ripemd-paired/before.txt │ .local-perf/20261005-gpu/ripemd-paired/after.txt │
+                                                    │                  hashes/dispatch                  │     hashes/dispatch       vs base                │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                         393.2k ± 0%                393.2k ± 0%       ~ (p=1.000 n=6) ¹
+GPUDispatch/p=18/chunks=4/tg=384/targets=65536-18                                           393.2k ± 0%                393.2k ± 0%       ~ (p=1.000 n=6) ¹
+geomean                                                                                     393.2k                     393.2k       +0.00%
+¹ all samples are equal
+
+                                                    │ .local-perf/20261005-gpu/ripemd-paired/before.txt │ .local-perf/20261005-gpu/ripemd-paired/after.txt │
+                                                    │                     hashes/s                      │          hashes/s           vs base              │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                         683.9M ± 3%                  687.6M ± 7%       ~ (p=0.699 n=6)
+GPUDispatch/p=18/chunks=4/tg=384/targets=65536-18                                           692.4M ± 6%                  690.7M ± 2%       ~ (p=0.699 n=6)
+geomean                                                                                     688.2M                       689.1M       +0.14%
+
+                                                    │ .local-perf/20261005-gpu/ripemd-paired/before.txt │ .local-perf/20261005-gpu/ripemd-paired/after.txt │
+                                                    │                     sec/hash                      │          sec/hash           vs base              │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                         1.462n ± 3%                  1.454n ± 8%       ~ (p=0.699 n=6)
+GPUDispatch/p=18/chunks=4/tg=384/targets=65536-18                                           1.445n ± 7%                  1.448n ± 2%       ~ (p=0.699 n=6)
+geomean                                                                                     1.453n                       1.451n       -0.17%
+
+                                                    │ .local-perf/20261005-gpu/ripemd-paired/before.txt │ .local-perf/20261005-gpu/ripemd-paired/after.txt │
+                                                    │                       B/op                        │           B/op            vs base                │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                        95.50 ± 7%                   94.50 ± 6%       ~ (p=0.727 n=6)
+GPUDispatch/p=18/chunks=4/tg=384/targets=65536-18                                          0.000 ± 0%                   0.000 ± 0%       ~ (p=1.000 n=6) ¹
+geomean                                                                                               ²                             -0.52%               ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean
+
+                                                    │ .local-perf/20261005-gpu/ripemd-paired/before.txt │ .local-perf/20261005-gpu/ripemd-paired/after.txt │
+                                                    │                     allocs/op                     │        allocs/op          vs base                │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                        1.000 ± 0%                   1.000 ± 0%       ~ (p=1.000 n=6) ¹
+GPUDispatch/p=18/chunks=4/tg=384/targets=65536-18                                          0.000 ± 0%                   0.000 ± 0%       ~ (p=1.000 n=6) ¹
+geomean                                                                                               ²                             +0.00%               ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean

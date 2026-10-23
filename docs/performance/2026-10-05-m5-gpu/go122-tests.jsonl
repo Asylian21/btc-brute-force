@@ -1,0 +1,333 @@
+{"Time":"2026-10-05T09:23:21.246542+02:00","Action":"start","Package":"github.com/Asylian21/btc-brute-force"}
+{"Time":"2026-10-05T09:23:21.246798+02:00","Action":"start","Package":"github.com/Asylian21/btc-brute-force/bench"}
+{"Time":"2026-10-05T09:23:21.246826+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/bench","Output":"testing: warning: no tests to run\n"}
+{"Time":"2026-10-05T09:23:21.246838+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/bench","Output":"PASS\n"}
+{"Time":"2026-10-05T09:23:21.246843+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/bench","Output":"ok  \tgithub.com/Asylian21/btc-brute-force/bench\t(cached) [no tests to run]\n"}
+{"Time":"2026-10-05T09:23:21.246854+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force/bench","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.52964+02:00","Action":"start","Package":"github.com/Asylian21/btc-brute-force/gpu/metal"}
+{"Time":"2026-10-05T09:23:21.579526+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestKeyStreamMatchesReference"}
+{"Time":"2026-10-05T09:23:21.579581+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestKeyStreamMatchesReference","Output":"=== RUN   TestKeyStreamMatchesReference\n"}
+{"Time":"2026-10-05T09:23:21.583454+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestKeyStreamMatchesReference","Output":"--- PASS: TestKeyStreamMatchesReference (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.583483+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestKeyStreamMatchesReference","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.58349+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestKeyStreamAllVariants"}
+{"Time":"2026-10-05T09:23:21.583496+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestKeyStreamAllVariants","Output":"=== RUN   TestKeyStreamAllVariants\n"}
+{"Time":"2026-10-05T09:23:21.59076+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestKeyStreamAllVariants","Output":"--- PASS: TestKeyStreamAllVariants (0.01s)\n"}
+{"Time":"2026-10-05T09:23:21.590786+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestKeyStreamAllVariants","Elapsed":0.01}
+{"Time":"2026-10-05T09:23:21.590819+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestKeyStreamContinuity"}
+{"Time":"2026-10-05T09:23:21.590828+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestKeyStreamContinuity","Output":"=== RUN   TestKeyStreamContinuity\n"}
+{"Time":"2026-10-05T09:23:21.592539+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestKeyStreamContinuity","Output":"--- PASS: TestKeyStreamContinuity (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.592557+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestKeyStreamContinuity","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.592563+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFillBasePubkeysSteps"}
+{"Time":"2026-10-05T09:23:21.592568+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFillBasePubkeysSteps","Output":"=== RUN   TestFillBasePubkeysSteps\n"}
+{"Time":"2026-10-05T09:23:21.593038+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFillBasePubkeysSteps","Output":"--- PASS: TestFillBasePubkeysSteps (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.593053+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFillBasePubkeysSteps","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.593058+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestEndomorphismConstants"}
+{"Time":"2026-10-05T09:23:21.593063+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestEndomorphismConstants","Output":"=== RUN   TestEndomorphismConstants\n"}
+{"Time":"2026-10-05T09:23:21.593102+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestEndomorphismConstants","Output":"--- PASS: TestEndomorphismConstants (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.593136+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestEndomorphismConstants","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.593145+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadTargetHashes"}
+{"Time":"2026-10-05T09:23:21.593151+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadTargetHashes","Output":"=== RUN   TestReadTargetHashes\n"}
+{"Time":"2026-10-05T09:23:21.593604+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadTargetHashes","Output":"--- PASS: TestReadTargetHashes (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.59362+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadTargetHashes","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.593626+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadTargetHashesEmptyFile"}
+{"Time":"2026-10-05T09:23:21.593632+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadTargetHashesEmptyFile","Output":"=== RUN   TestReadTargetHashesEmptyFile\n"}
+{"Time":"2026-10-05T09:23:21.593905+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadTargetHashesEmptyFile","Output":"--- PASS: TestReadTargetHashesEmptyFile (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.593915+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadTargetHashesEmptyFile","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.593921+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadTargetHashesNonexistentFile"}
+{"Time":"2026-10-05T09:23:21.593933+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadTargetHashesNonexistentFile","Output":"=== RUN   TestReadTargetHashesNonexistentFile\n"}
+{"Time":"2026-10-05T09:23:21.593948+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadTargetHashesNonexistentFile","Output":"--- PASS: TestReadTargetHashesNonexistentFile (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.593954+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadTargetHashesNonexistentFile","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.593964+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGenerateKeyAndHash160"}
+{"Time":"2026-10-05T09:23:21.593968+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGenerateKeyAndHash160","Output":"=== RUN   TestGenerateKeyAndHash160\n"}
+{"Time":"2026-10-05T09:23:21.593989+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGenerateKeyAndHash160","Output":"--- PASS: TestGenerateKeyAndHash160 (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.593995+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGenerateKeyAndHash160","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.594+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGenerateKeyAndHash160Unique"}
+{"Time":"2026-10-05T09:23:21.594003+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGenerateKeyAndHash160Unique","Output":"=== RUN   TestGenerateKeyAndHash160Unique\n"}
+{"Time":"2026-10-05T09:23:21.596194+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGenerateKeyAndHash160Unique","Output":"--- PASS: TestGenerateKeyAndHash160Unique (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.596208+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGenerateKeyAndHash160Unique","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.596212+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBufferPool"}
+{"Time":"2026-10-05T09:23:21.596215+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBufferPool","Output":"=== RUN   TestBufferPool\n"}
+{"Time":"2026-10-05T09:23:21.596223+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBufferPool","Output":"--- PASS: TestBufferPool (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.596226+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBufferPool","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.596229+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomNoFalseNegatives"}
+{"Time":"2026-10-05T09:23:21.596231+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomNoFalseNegatives","Output":"=== RUN   TestBloomNoFalseNegatives\n"}
+{"Time":"2026-10-05T09:23:21.599045+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomNoFalseNegatives","Output":"--- PASS: TestBloomNoFalseNegatives (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.599052+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomNoFalseNegatives","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.599055+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomFalsePositiveRate"}
+{"Time":"2026-10-05T09:23:21.599057+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomFalsePositiveRate","Output":"=== RUN   TestBloomFalsePositiveRate\n"}
+{"Time":"2026-10-05T09:23:21.609328+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomFalsePositiveRate","Output":"    bloom_test.go:61: bloom: n=20000 m=1048576 bits k=32 -\u003e observed FPR 0.00e+00 (0/200000)\n"}
+{"Time":"2026-10-05T09:23:21.609343+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomFalsePositiveRate","Output":"--- PASS: TestBloomFalsePositiveRate (0.01s)\n"}
+{"Time":"2026-10-05T09:23:21.609346+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomFalsePositiveRate","Elapsed":0.01}
+{"Time":"2026-10-05T09:23:21.609351+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomDeterministicHashes"}
+{"Time":"2026-10-05T09:23:21.609354+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomDeterministicHashes","Output":"=== RUN   TestBloomDeterministicHashes\n"}
+{"Time":"2026-10-05T09:23:21.609358+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomDeterministicHashes","Output":"--- PASS: TestBloomDeterministicHashes (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.609366+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomDeterministicHashes","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.609368+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomSizing"}
+{"Time":"2026-10-05T09:23:21.609371+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomSizing","Output":"=== RUN   TestBloomSizing\n"}
+{"Time":"2026-10-05T09:23:21.609654+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomSizing","Output":"--- PASS: TestBloomSizing (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.609726+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestBloomSizing","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.609762+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex"}
+{"Time":"2026-10-05T09:23:21.609772+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex","Output":"=== RUN   TestParsePrivateKeyHex\n"}
+{"Time":"2026-10-05T09:23:21.609777+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/valid_64"}
+{"Time":"2026-10-05T09:23:21.60978+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/valid_64","Output":"=== RUN   TestParsePrivateKeyHex/valid_64\n"}
+{"Time":"2026-10-05T09:23:21.609787+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/valid_64","Output":"--- PASS: TestParsePrivateKeyHex/valid_64 (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.609791+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/valid_64","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.609794+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/valid_key_1"}
+{"Time":"2026-10-05T09:23:21.609797+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/valid_key_1","Output":"=== RUN   TestParsePrivateKeyHex/valid_key_1\n"}
+{"Time":"2026-10-05T09:23:21.6098+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/valid_key_1","Output":"--- PASS: TestParsePrivateKeyHex/valid_key_1 (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.609803+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/valid_key_1","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.609805+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/odd_length_65"}
+{"Time":"2026-10-05T09:23:21.609807+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/odd_length_65","Output":"=== RUN   TestParsePrivateKeyHex/odd_length_65\n"}
+{"Time":"2026-10-05T09:23:21.60981+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/odd_length_65","Output":"--- PASS: TestParsePrivateKeyHex/odd_length_65 (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.609812+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/odd_length_65","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.609814+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/too_short"}
+{"Time":"2026-10-05T09:23:21.609816+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/too_short","Output":"=== RUN   TestParsePrivateKeyHex/too_short\n"}
+{"Time":"2026-10-05T09:23:21.609818+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/too_short","Output":"--- PASS: TestParsePrivateKeyHex/too_short (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.60982+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/too_short","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.609823+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/empty"}
+{"Time":"2026-10-05T09:23:21.609832+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/empty","Output":"=== RUN   TestParsePrivateKeyHex/empty\n"}
+{"Time":"2026-10-05T09:23:21.609835+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/empty","Output":"--- PASS: TestParsePrivateKeyHex/empty (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.609837+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/empty","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.609839+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/bad_hex_char"}
+{"Time":"2026-10-05T09:23:21.609841+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/bad_hex_char","Output":"=== RUN   TestParsePrivateKeyHex/bad_hex_char\n"}
+{"Time":"2026-10-05T09:23:21.609844+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/bad_hex_char","Output":"--- PASS: TestParsePrivateKeyHex/bad_hex_char (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.609846+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex/bad_hex_char","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.609852+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex","Output":"--- PASS: TestParsePrivateKeyHex (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.609854+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestParsePrivateKeyHex","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.609856+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestLinearOffsetFromKeys"}
+{"Time":"2026-10-05T09:23:21.609858+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestLinearOffsetFromKeys","Output":"=== RUN   TestLinearOffsetFromKeys\n"}
+{"Time":"2026-10-05T09:23:21.60986+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestLinearOffsetFromKeys","Output":"--- PASS: TestLinearOffsetFromKeys (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.609862+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestLinearOffsetFromKeys","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.609864+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestWriteReadCheckpointRoundTrip"}
+{"Time":"2026-10-05T09:23:21.609866+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestWriteReadCheckpointRoundTrip","Output":"=== RUN   TestWriteReadCheckpointRoundTrip\n"}
+{"Time":"2026-10-05T09:23:21.610398+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestWriteReadCheckpointRoundTrip","Output":"--- PASS: TestWriteReadCheckpointRoundTrip (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.610405+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestWriteReadCheckpointRoundTrip","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.61041+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeWithExplicitStartKey"}
+{"Time":"2026-10-05T09:23:21.610413+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeWithExplicitStartKey","Output":"=== RUN   TestResumeWithExplicitStartKey\n"}
+{"Time":"2026-10-05T09:23:21.610416+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeWithExplicitStartKey","Output":"--- PASS: TestResumeWithExplicitStartKey (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.610419+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeWithExplicitStartKey","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.610425+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeNoStartKeyReanchorsFarKey"}
+{"Time":"2026-10-05T09:23:21.610427+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeNoStartKeyReanchorsFarKey","Output":"=== RUN   TestResumeNoStartKeyReanchorsFarKey\n"}
+{"Time":"2026-10-05T09:23:21.61043+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeNoStartKeyReanchorsFarKey","Output":"--- PASS: TestResumeNoStartKeyReanchorsFarKey (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.610432+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeNoStartKeyReanchorsFarKey","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.610434+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeNoStartKeyLegacySmallKey"}
+{"Time":"2026-10-05T09:23:21.610437+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeNoStartKeyLegacySmallKey","Output":"=== RUN   TestResumeNoStartKeyLegacySmallKey\n"}
+{"Time":"2026-10-05T09:23:21.610439+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeNoStartKeyLegacySmallKey","Output":"--- PASS: TestResumeNoStartKeyLegacySmallKey (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.610442+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeNoStartKeyLegacySmallKey","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.610444+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeStartChunkFloorsToBoundary"}
+{"Time":"2026-10-05T09:23:21.61045+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeStartChunkFloorsToBoundary","Output":"=== RUN   TestResumeStartChunkFloorsToBoundary\n"}
+{"Time":"2026-10-05T09:23:21.610453+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeStartChunkFloorsToBoundary","Output":"--- PASS: TestResumeStartChunkFloorsToBoundary (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.610462+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeStartChunkFloorsToBoundary","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.610465+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeRejectsInvalidKeys"}
+{"Time":"2026-10-05T09:23:21.61047+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeRejectsInvalidKeys","Output":"=== RUN   TestResumeRejectsInvalidKeys\n"}
+{"Time":"2026-10-05T09:23:21.610474+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeRejectsInvalidKeys","Output":"--- PASS: TestResumeRejectsInvalidKeys (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.610477+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestResumeRejectsInvalidKeys","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.610479+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadCheckpointErrors"}
+{"Time":"2026-10-05T09:23:21.610482+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadCheckpointErrors","Output":"=== RUN   TestReadCheckpointErrors\n"}
+{"Time":"2026-10-05T09:23:21.610918+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadCheckpointErrors","Output":"--- PASS: TestReadCheckpointErrors (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.610922+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestReadCheckpointErrors","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.610925+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestCheckpointResumeContinuity"}
+{"Time":"2026-10-05T09:23:21.610927+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestCheckpointResumeContinuity","Output":"=== RUN   TestCheckpointResumeContinuity\n"}
+{"Time":"2026-10-05T09:23:21.611408+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestCheckpointResumeContinuity","Output":"--- PASS: TestCheckpointResumeContinuity (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.611412+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestCheckpointResumeContinuity","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.611414+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerInOrder"}
+{"Time":"2026-10-05T09:23:21.611416+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerInOrder","Output":"=== RUN   TestFrontierTrackerInOrder\n"}
+{"Time":"2026-10-05T09:23:21.611419+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerInOrder","Output":"--- PASS: TestFrontierTrackerInOrder (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.611421+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerInOrder","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.611423+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerOutOfOrder"}
+{"Time":"2026-10-05T09:23:21.611425+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerOutOfOrder","Output":"=== RUN   TestFrontierTrackerOutOfOrder\n"}
+{"Time":"2026-10-05T09:23:21.611427+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerOutOfOrder","Output":"--- PASS: TestFrontierTrackerOutOfOrder (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.611432+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerOutOfOrder","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.611434+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerStartOffset"}
+{"Time":"2026-10-05T09:23:21.611436+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerStartOffset","Output":"=== RUN   TestFrontierTrackerStartOffset\n"}
+{"Time":"2026-10-05T09:23:21.611439+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerStartOffset","Output":"--- PASS: TestFrontierTrackerStartOffset (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.611441+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerStartOffset","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.611443+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerConcurrentClaims"}
+{"Time":"2026-10-05T09:23:21.611445+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerConcurrentClaims","Output":"=== RUN   TestFrontierTrackerConcurrentClaims\n"}
+{"Time":"2026-10-05T09:23:21.61352+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerConcurrentClaims","Output":"--- PASS: TestFrontierTrackerConcurrentClaims (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.613542+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerConcurrentClaims","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.613547+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerPartialThenGap"}
+{"Time":"2026-10-05T09:23:21.613552+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerPartialThenGap","Output":"=== RUN   TestFrontierTrackerPartialThenGap\n"}
+{"Time":"2026-10-05T09:23:21.613556+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerPartialThenGap","Output":"--- PASS: TestFrontierTrackerPartialThenGap (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.613561+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestFrontierTrackerPartialThenGap","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.613565+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationSessionReuse"}
+{"Time":"2026-10-05T09:23:21.613568+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationSessionReuse","Output":"=== RUN   TestGPUCalibrationSessionReuse\n"}
+{"Time":"2026-10-05T09:23:21.671952+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationSessionReuse","Output":"--- PASS: TestGPUCalibrationSessionReuse (0.06s)\n"}
+{"Time":"2026-10-05T09:23:21.67198+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationSessionReuse","Elapsed":0.06}
+{"Time":"2026-10-05T09:23:21.671986+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration"}
+{"Time":"2026-10-05T09:23:21.671993+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration","Output":"=== RUN   TestGPUCalibrationRejectsInvalidConfiguration\n"}
+{"Time":"2026-10-05T09:23:21.672004+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/nil_hasher"}
+{"Time":"2026-10-05T09:23:21.67201+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/nil_hasher","Output":"=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/nil_hasher\n"}
+{"Time":"2026-10-05T09:23:21.672016+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/nil_hasher","Output":"--- PASS: TestGPUCalibrationRejectsInvalidConfiguration/nil_hasher (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.672036+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/nil_hasher","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.672039+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_producers"}
+{"Time":"2026-10-05T09:23:21.672053+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_producers","Output":"=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/zero_producers\n"}
+{"Time":"2026-10-05T09:23:21.672056+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_producers","Output":"--- PASS: TestGPUCalibrationRejectsInvalidConfiguration/zero_producers (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.672068+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_producers","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.672071+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_producers"}
+{"Time":"2026-10-05T09:23:21.672082+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_producers","Output":"=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/negative_producers\n"}
+{"Time":"2026-10-05T09:23:21.672097+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_producers","Output":"--- PASS: TestGPUCalibrationRejectsInvalidConfiguration/negative_producers (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.672103+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_producers","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.672106+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_chunks"}
+{"Time":"2026-10-05T09:23:21.672108+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_chunks","Output":"=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/zero_chunks\n"}
+{"Time":"2026-10-05T09:23:21.672111+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_chunks","Output":"--- PASS: TestGPUCalibrationRejectsInvalidConfiguration/zero_chunks (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.672117+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_chunks","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.672121+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_chunks"}
+{"Time":"2026-10-05T09:23:21.672123+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_chunks","Output":"=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/negative_chunks\n"}
+{"Time":"2026-10-05T09:23:21.672125+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_chunks","Output":"--- PASS: TestGPUCalibrationRejectsInvalidConfiguration/negative_chunks (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.672128+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_chunks","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.67213+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/overflowing_chunks"}
+{"Time":"2026-10-05T09:23:21.672135+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/overflowing_chunks","Output":"=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/overflowing_chunks\n"}
+{"Time":"2026-10-05T09:23:21.672138+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/overflowing_chunks","Output":"--- PASS: TestGPUCalibrationRejectsInvalidConfiguration/overflowing_chunks (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.67214+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/overflowing_chunks","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.672143+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_duration"}
+{"Time":"2026-10-05T09:23:21.672147+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_duration","Output":"=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/zero_duration\n"}
+{"Time":"2026-10-05T09:23:21.672153+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_duration","Output":"--- PASS: TestGPUCalibrationRejectsInvalidConfiguration/zero_duration (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.672159+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_duration","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.672163+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_duration"}
+{"Time":"2026-10-05T09:23:21.672165+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_duration","Output":"=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/negative_duration\n"}
+{"Time":"2026-10-05T09:23:21.672171+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_duration","Output":"--- PASS: TestGPUCalibrationRejectsInvalidConfiguration/negative_duration (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.672173+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_duration","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.672175+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_sample_chunks"}
+{"Time":"2026-10-05T09:23:21.672183+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_sample_chunks","Output":"=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/zero_sample_chunks\n"}
+{"Time":"2026-10-05T09:23:21.672189+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_sample_chunks","Output":"--- PASS: TestGPUCalibrationRejectsInvalidConfiguration/zero_sample_chunks (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.672191+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/zero_sample_chunks","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.672196+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_sample_chunks"}
+{"Time":"2026-10-05T09:23:21.6722+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_sample_chunks","Output":"=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/negative_sample_chunks\n"}
+{"Time":"2026-10-05T09:23:21.672205+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_sample_chunks","Output":"--- PASS: TestGPUCalibrationRejectsInvalidConfiguration/negative_sample_chunks (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.672209+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/negative_sample_chunks","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.672219+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/sample_exceeds_allocation"}
+{"Time":"2026-10-05T09:23:21.672224+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/sample_exceeds_allocation","Output":"=== RUN   TestGPUCalibrationRejectsInvalidConfiguration/sample_exceeds_allocation\n"}
+{"Time":"2026-10-05T09:23:21.672226+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/sample_exceeds_allocation","Output":"--- PASS: TestGPUCalibrationRejectsInvalidConfiguration/sample_exceeds_allocation (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.672229+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration/sample_exceeds_allocation","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.672247+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration","Output":"2026/10/05 09:23:21 GPU calibration rejected: invalid sample duration -1ms\n"}
+{"Time":"2026-10-05T09:23:21.67225+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration","Output":"--- PASS: TestGPUCalibrationRejectsInvalidConfiguration (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.672254+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationRejectsInvalidConfiguration","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.672259+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationMedian3"}
+{"Time":"2026-10-05T09:23:21.672261+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationMedian3","Output":"=== RUN   TestGPUCalibrationMedian3\n"}
+{"Time":"2026-10-05T09:23:21.672263+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationMedian3","Output":"--- PASS: TestGPUCalibrationMedian3 (0.00s)\n"}
+{"Time":"2026-10-05T09:23:21.672265+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationMedian3","Elapsed":0}
+{"Time":"2026-10-05T09:23:21.672267+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUAutoTuneSelection"}
+{"Time":"2026-10-05T09:23:21.672269+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUAutoTuneSelection","Output":"=== RUN   TestGPUAutoTuneSelection\n"}
+{"Time":"2026-10-05T09:23:21.672855+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUAutoTuneSelection","Output":"Tuning GPU (about 2–3s of samples, plus setup and queue drain)...\n"}
+{"Time":"2026-10-05T09:23:21.724347+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUECAdd"}
+{"Time":"2026-10-05T09:23:21.724367+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUECAdd","Output":"=== RUN   TestGPUECAdd\n"}
+{"Time":"2026-10-05T09:23:23.462592+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUAutoTuneSelection","Output":"    gpu_calibration_test.go:155: completed coordinate search and confirmations: chunks=1 TG=0 61.9 M hashes/s (liveness check)\n"}
+{"Time":"2026-10-05T09:23:23.462852+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUAutoTuneSelection","Output":"--- PASS: TestGPUAutoTuneSelection (1.79s)\n"}
+{"Time":"2026-10-05T09:23:23.462875+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUAutoTuneSelection","Elapsed":1.79}
+{"Time":"2026-10-05T09:23:23.462882+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUSelfTestGate"}
+{"Time":"2026-10-05T09:23:23.46289+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUSelfTestGate","Output":"=== RUN   TestGPUSelfTestGate\n"}
+{"Time":"2026-10-05T09:23:23.634582+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUSelfTestGate","Output":"--- PASS: TestGPUSelfTestGate (0.17s)\n"}
+{"Time":"2026-10-05T09:23:23.634603+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUSelfTestGate","Elapsed":0.17}
+{"Time":"2026-10-05T09:23:23.63461+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUEndToEndPipeline"}
+{"Time":"2026-10-05T09:23:23.634614+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUEndToEndPipeline","Output":"=== RUN   TestGPUEndToEndPipeline\n"}
+{"Time":"2026-10-05T09:23:23.640114+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUEndToEndPipeline","Output":"\n"}
+{"Time":"2026-10-05T09:23:23.640146+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUEndToEndPipeline","Output":"*** MATCH FOUND! ***\n"}
+{"Time":"2026-10-05T09:23:23.640151+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUEndToEndPipeline","Output":"0000000000000000000000000000000000000000000000000000000000000065:1NDTiygBwjhUwsK9n9qJqrKitDURg4csxP\n"}
+{"Time":"2026-10-05T09:23:23.640159+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUEndToEndPipeline","Output":"\n"}
+{"Time":"2026-10-05T09:23:23.640163+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUEndToEndPipeline","Output":"\n"}
+{"Time":"2026-10-05T09:23:23.640166+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUEndToEndPipeline","Output":"*** MATCH FOUND! ***\n"}
+{"Time":"2026-10-05T09:23:23.640169+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUEndToEndPipeline","Output":"5938a5667f479e3eb5b3c7faefdb374a965297126e45d34a01cd319499eec65d:1C2VVTbddYnXxTQtzNvLNBn1LCPA34Smn7\n"}
+{"Time":"2026-10-05T09:23:23.640172+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUEndToEndPipeline","Output":"\n"}
+{"Time":"2026-10-05T09:23:23.643693+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUEndToEndPipeline","Output":"    gpu_ecwalk_test.go:120: end-to-end: both planted targets found (base + GLV variant), frontier=2, keys counted=196608\n"}
+{"Time":"2026-10-05T09:23:23.643902+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUEndToEndPipeline","Output":"--- PASS: TestGPUEndToEndPipeline (0.01s)\n"}
+{"Time":"2026-10-05T09:23:23.643935+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUEndToEndPipeline","Elapsed":0.01}
+{"Time":"2026-10-05T09:23:23.643945+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUECWalkSelfTest"}
+{"Time":"2026-10-05T09:23:23.643952+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUECWalkSelfTest","Output":"=== RUN   TestGPUECWalkSelfTest\n"}
+{"Time":"2026-10-05T09:23:23.743928+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUECWalkSelfTest","Output":"--- PASS: TestGPUECWalkSelfTest (0.10s)\n"}
+{"Time":"2026-10-05T09:23:23.743958+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUECWalkSelfTest","Elapsed":0.1}
+{"Time":"2026-10-05T09:23:23.743973+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationSanity"}
+{"Time":"2026-10-05T09:23:23.743987+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationSanity","Output":"=== RUN   TestGPUCalibrationSanity\n"}
+{"Time":"2026-10-05T09:23:23.780874+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUECAdd","Output":"    ec_walk_test.go:94: ec_affine_add: 20000 random point additions OK\n"}
+{"Time":"2026-10-05T09:23:23.781495+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUECAdd","Output":"--- PASS: TestGPUECAdd (2.06s)\n"}
+{"Time":"2026-10-05T09:23:23.781507+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUECAdd","Elapsed":2.06}
+{"Time":"2026-10-05T09:23:23.781513+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterCandidateOverflow"}
+{"Time":"2026-10-05T09:23:23.781517+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterCandidateOverflow","Output":"=== RUN   TestGLVFilterCandidateOverflow\n"}
+{"Time":"2026-10-05T09:23:23.782416+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterCandidateOverflow/default"}
+{"Time":"2026-10-05T09:23:23.782452+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterCandidateOverflow/default","Output":"=== RUN   TestGLVFilterCandidateOverflow/default\n"}
+{"Time":"2026-10-05T09:23:23.78991+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterCandidateOverflow/default","Output":"--- PASS: TestGLVFilterCandidateOverflow/default (0.01s)\n"}
+{"Time":"2026-10-05T09:23:23.789949+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterCandidateOverflow/default","Elapsed":0.01}
+{"Time":"2026-10-05T09:23:23.789956+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterCandidateOverflow/stream"}
+{"Time":"2026-10-05T09:23:23.789959+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterCandidateOverflow/stream","Output":"=== RUN   TestGLVFilterCandidateOverflow/stream\n"}
+{"Time":"2026-10-05T09:23:23.796181+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterCandidateOverflow/stream","Output":"--- PASS: TestGLVFilterCandidateOverflow/stream (0.01s)\n"}
+{"Time":"2026-10-05T09:23:23.79622+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterCandidateOverflow/stream","Elapsed":0.01}
+{"Time":"2026-10-05T09:23:23.796816+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterCandidateOverflow","Output":"--- PASS: TestGLVFilterCandidateOverflow (0.02s)\n"}
+{"Time":"2026-10-05T09:23:23.796842+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterCandidateOverflow","Elapsed":0.02}
+{"Time":"2026-10-05T09:23:23.796852+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterEmptyAndNilInputs"}
+{"Time":"2026-10-05T09:23:23.796857+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterEmptyAndNilInputs","Output":"=== RUN   TestGLVFilterEmptyAndNilInputs\n"}
+{"Time":"2026-10-05T09:23:23.796862+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterEmptyAndNilInputs","Output":"--- PASS: TestGLVFilterEmptyAndNilInputs (0.00s)\n"}
+{"Time":"2026-10-05T09:23:23.796868+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGLVFilterEmptyAndNilInputs","Elapsed":0}
+{"Time":"2026-10-05T09:23:23.796873+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestComputeHarness"}
+{"Time":"2026-10-05T09:23:23.796889+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestComputeHarness","Output":"=== RUN   TestComputeHarness\n"}
+{"Time":"2026-10-05T09:23:23.958588+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestComputeHarness","Output":"--- PASS: TestComputeHarness (0.16s)\n"}
+{"Time":"2026-10-05T09:23:23.958627+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestComputeHarness","Elapsed":0.16}
+{"Time":"2026-10-05T09:23:23.958638+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestHash160BitExact"}
+{"Time":"2026-10-05T09:23:23.958643+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestHash160BitExact","Output":"=== RUN   TestHash160BitExact\n"}
+{"Time":"2026-10-05T09:23:23.959711+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestHash160BitExact","Output":"    hash160_test.go:53: Metal device: Apple M5 Pro\n"}
+{"Time":"2026-10-05T09:23:24.321208+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestHash160BitExact","Output":"--- PASS: TestHash160BitExact (0.36s)\n"}
+{"Time":"2026-10-05T09:23:24.32125+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestHash160BitExact","Elapsed":0.36}
+{"Time":"2026-10-05T09:23:24.321259+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestHash160RealPubkeys"}
+{"Time":"2026-10-05T09:23:24.321349+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestHash160RealPubkeys","Output":"=== RUN   TestHash160RealPubkeys\n"}
+{"Time":"2026-10-05T09:23:24.335968+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestHash160RealPubkeys","Output":"--- PASS: TestHash160RealPubkeys (0.01s)\n"}
+{"Time":"2026-10-05T09:23:24.336002+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestHash160RealPubkeys","Elapsed":0.01}
+{"Time":"2026-10-05T09:23:24.336012+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldBinaryOps"}
+{"Time":"2026-10-05T09:23:24.336017+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldBinaryOps","Output":"=== RUN   TestGPUFieldBinaryOps\n"}
+{"Time":"2026-10-05T09:23:24.407977+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationSanity","Output":"    gpu_ecwalk_test.go:166: calibration A/B (18 producers, 6 chunks/dispatch): GPU=566.0 M keys/s, CPU=219.4 M keys/s, ratio=2.58x\n"}
+{"Time":"2026-10-05T09:23:24.408712+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationSanity","Output":"--- PASS: TestGPUCalibrationSanity (0.67s)\n"}
+{"Time":"2026-10-05T09:23:24.408731+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUCalibrationSanity","Elapsed":0.67}
+{"Time":"2026-10-05T09:23:24.408743+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUProductionSweep"}
+{"Time":"2026-10-05T09:23:24.408747+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUProductionSweep","Output":"=== RUN   TestGPUProductionSweep\n"}
+{"Time":"2026-10-05T09:23:24.408751+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUProductionSweep","Output":"    gpu_ecwalk_test.go:178: sweep diagnostic skipped under -short\n"}
+{"Time":"2026-10-05T09:23:24.408761+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUProductionSweep","Output":"--- SKIP: TestGPUProductionSweep (0.00s)\n"}
+{"Time":"2026-10-05T09:23:24.408765+02:00","Action":"skip","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUProductionSweep","Elapsed":0}
+{"Time":"2026-10-05T09:23:24.408778+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUWalkDispatchThroughput"}
+{"Time":"2026-10-05T09:23:24.408782+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUWalkDispatchThroughput","Output":"=== RUN   TestGPUWalkDispatchThroughput\n"}
+{"Time":"2026-10-05T09:23:24.408786+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUWalkDispatchThroughput","Output":"    gpu_ecwalk_test.go:204: throughput diagnostic skipped under -short\n"}
+{"Time":"2026-10-05T09:23:24.408789+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUWalkDispatchThroughput","Output":"--- SKIP: TestGPUWalkDispatchThroughput (0.00s)\n"}
+{"Time":"2026-10-05T09:23:24.408803+02:00","Action":"skip","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUWalkDispatchThroughput","Elapsed":0}
+{"Time":"2026-10-05T09:23:24.408806+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUECWalk"}
+{"Time":"2026-10-05T09:23:24.408809+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUECWalk","Output":"=== RUN   TestGPUECWalk\n"}
+{"Time":"2026-10-05T09:23:24.61601+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldBinaryOps","Output":"    secp_field_test.go:166: fe_add: 200000 random inputs OK\n"}
+{"Time":"2026-10-05T09:23:24.662189+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldBinaryOps","Output":"    secp_field_test.go:166: fe_sub: 200000 random inputs OK\n"}
+{"Time":"2026-10-05T09:23:24.739169+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldBinaryOps","Output":"    secp_field_test.go:166: fe_mul: 200000 random inputs OK\n"}
+{"Time":"2026-10-05T09:23:24.739814+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldBinaryOps","Output":"--- PASS: TestGPUFieldBinaryOps (0.40s)\n"}
+{"Time":"2026-10-05T09:23:24.739834+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldBinaryOps","Elapsed":0.4}
+{"Time":"2026-10-05T09:23:24.73984+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldSqr"}
+{"Time":"2026-10-05T09:23:24.739844+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldSqr","Output":"=== RUN   TestGPUFieldSqr\n"}
+{"Time":"2026-10-05T09:23:24.849704+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldSqr","Output":"    secp_field_test.go:191: fe_sqr: 200000 random inputs OK\n"}
+{"Time":"2026-10-05T09:23:24.850188+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldSqr","Output":"--- PASS: TestGPUFieldSqr (0.11s)\n"}
+{"Time":"2026-10-05T09:23:24.850197+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldSqr","Elapsed":0.11}
+{"Time":"2026-10-05T09:23:24.850203+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldNormalize"}
+{"Time":"2026-10-05T09:23:24.850207+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldNormalize","Output":"=== RUN   TestGPUFieldNormalize\n"}
+{"Time":"2026-10-05T09:23:24.928962+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldNormalize","Output":"    secp_field_test.go:234: fe_normalize: 200000 inputs OK (100000 were \u003e= p)\n"}
+{"Time":"2026-10-05T09:23:24.929528+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldNormalize","Output":"--- PASS: TestGPUFieldNormalize (0.08s)\n"}
+{"Time":"2026-10-05T09:23:24.929538+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldNormalize","Elapsed":0.08}
+{"Time":"2026-10-05T09:23:24.929553+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldInverse"}
+{"Time":"2026-10-05T09:23:24.929556+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldInverse","Output":"=== RUN   TestGPUFieldInverse\n"}
+{"Time":"2026-10-05T09:23:25.152957+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldInverse","Output":"    secp_field_test.go:268: fe_inv: 100000 random inputs OK\n"}
+{"Time":"2026-10-05T09:23:25.153493+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldInverse","Output":"--- PASS: TestGPUFieldInverse (0.22s)\n"}
+{"Time":"2026-10-05T09:23:25.153503+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Test":"TestGPUFieldInverse","Elapsed":0.22}
+{"Time":"2026-10-05T09:23:25.15351+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Output":"PASS\n"}
+{"Time":"2026-10-05T09:23:25.156743+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Output":"ok  \tgithub.com/Asylian21/btc-brute-force/gpu/metal\t3.627s\n"}
+{"Time":"2026-10-05T09:23:25.157292+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force/gpu/metal","Elapsed":3.628}
+{"Time":"2026-10-05T09:23:30.870328+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUECWalk","Output":"    gpu_ecwalk_test.go:445: on-GPU EC walk over 128 threads x 128 batch = 16384 keys (98304 variants): 98304 candidates, 98304 confirmed, 0 false positives (k=30, 4194304 bits)\n"}
+{"Time":"2026-10-05T09:23:30.872674+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUECWalk","Output":"--- PASS: TestGPUECWalk (6.46s)\n"}
+{"Time":"2026-10-05T09:23:30.872695+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUECWalk","Elapsed":6.46}
+{"Time":"2026-10-05T09:23:30.872702+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUBloomFilter"}
+{"Time":"2026-10-05T09:23:30.872706+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUBloomFilter","Output":"=== RUN   TestGPUBloomFilter\n"}
+{"Time":"2026-10-05T09:23:31.700055+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUBloomFilter","Output":"    gpu_filter_test.go:127: GPU filter over 100000 keys: 1031 candidates, 1031 real targets, 0 false positives (FPR 0.00e+00, k=32, 65536 bits)\n"}
+{"Time":"2026-10-05T09:23:31.700458+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUBloomFilter","Output":"--- PASS: TestGPUBloomFilter (0.83s)\n"}
+{"Time":"2026-10-05T09:23:31.700471+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUBloomFilter","Elapsed":0.83}
+{"Time":"2026-10-05T09:23:31.700479+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUGLVFilter"}
+{"Time":"2026-10-05T09:23:31.700486+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUGLVFilter","Output":"=== RUN   TestGPUGLVFilter\n"}
+{"Time":"2026-10-05T09:23:32.174916+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUGLVFilter","Output":"    gpu_glv_test.go:152: GPU GLV filter over 12000 bases (72000 variants): 4236 candidates, 4236 real targets, 0 false positives (FPR 0.00e+00, k=21, 131072 bits)\n"}
+{"Time":"2026-10-05T09:23:32.175304+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUGLVFilter","Output":"--- PASS: TestGPUGLVFilter (0.47s)\n"}
+{"Time":"2026-10-05T09:23:32.175312+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUGLVFilter","Elapsed":0.47}
+{"Time":"2026-10-05T09:23:32.175319+02:00","Action":"run","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUPerformanceFixture"}
+{"Time":"2026-10-05T09:23:32.175336+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUPerformanceFixture","Output":"=== RUN   TestGPUPerformanceFixture\n"}
+{"Time":"2026-10-05T09:23:32.198281+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUPerformanceFixture","Output":"    gpu_performance_test.go:352: 64 base points, 384 independent hashes, 30 GPU candidates, 30 planted targets; Bloom 262144 bytes, k=22\n"}
+{"Time":"2026-10-05T09:23:32.198687+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUPerformanceFixture","Output":"--- PASS: TestGPUPerformanceFixture (0.02s)\n"}
+{"Time":"2026-10-05T09:23:32.198696+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Test":"TestGPUPerformanceFixture","Elapsed":0.02}
+{"Time":"2026-10-05T09:23:32.198703+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Output":"PASS\n"}
+{"Time":"2026-10-05T09:23:32.202207+02:00","Action":"output","Package":"github.com/Asylian21/btc-brute-force","Output":"ok  \tgithub.com/Asylian21/btc-brute-force\t10.955s\n"}
+{"Time":"2026-10-05T09:23:32.203165+02:00","Action":"pass","Package":"github.com/Asylian21/btc-brute-force","Elapsed":10.957}

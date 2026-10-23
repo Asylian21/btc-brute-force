@@ -2,6 +2,23 @@
 
 This document explains how to benchmark the Bitcoin address-collision research toolkit and how to interpret the results. The important number for the optimized program is `BenchmarkKeyStreamPerKey`, because it measures the production worker hot path: batched secp256k1 point addition plus Hash160 lookup preparation.
 
+## Metal GPU validation and tuning — 2026-10-05
+
+Ten alternating pairs of 2-second samples on the M5 Pro confirm the selected
+SHA shader and dispatch changes: the complete synthetic hybrid pipeline rises
+from 666.0 to 699.9M variant hashes/s (+5.08%, p<0.001), and isolated populated
+Bloom dispatch from 672.7 to 700.0M hashes/s (+4.06%, p=0.001). Hot dispatch
+Go allocations fall from two to zero.
+
+Six longer 10-second pairs during continued load measure 498.2 to 514.3M
+hashes/s; that difference is not significant (p=0.310), so a sustained gain
+is not established. All 54 native physical-device tests pass without skips.
+Slower layouts were reverted; calibration now uses warmed streams, a populated
+Bloom, exact completion checks and confirmed median-based tuning.
+
+Use `make bench-gpu-scan` for the synthetic hybrid and dispatch workloads.
+See the [GPU report, raw samples and validation](docs/performance/2026-10-05-m5-gpu/README.md).
+
 ## Dependency validation and selective tuning — 2026-10-05
 
 Ten paired samples confirm ARM64 field square at -4.75% time and one-message

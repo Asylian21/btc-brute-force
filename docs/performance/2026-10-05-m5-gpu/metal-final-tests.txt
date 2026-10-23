@@ -1,0 +1,33 @@
+=== RUN   TestGPUECAdd
+    ec_walk_test.go:94: ec_affine_add: 20000 random point additions OK
+--- PASS: TestGPUECAdd (1.30s)
+=== RUN   TestGLVFilterCandidateOverflow
+=== RUN   TestGLVFilterCandidateOverflow/default
+=== RUN   TestGLVFilterCandidateOverflow/stream
+--- PASS: TestGLVFilterCandidateOverflow (0.00s)
+    --- PASS: TestGLVFilterCandidateOverflow/default (0.00s)
+    --- PASS: TestGLVFilterCandidateOverflow/stream (0.00s)
+=== RUN   TestGLVFilterEmptyAndNilInputs
+--- PASS: TestGLVFilterEmptyAndNilInputs (0.00s)
+=== RUN   TestComputeHarness
+--- PASS: TestComputeHarness (0.12s)
+=== RUN   TestHash160BitExact
+    hash160_test.go:53: Metal device: Apple M5 Pro
+--- PASS: TestHash160BitExact (0.27s)
+=== RUN   TestHash160RealPubkeys
+--- PASS: TestHash160RealPubkeys (0.01s)
+=== RUN   TestGPUFieldBinaryOps
+    secp_field_test.go:166: fe_add: 200000 random inputs OK
+    secp_field_test.go:166: fe_sub: 200000 random inputs OK
+    secp_field_test.go:166: fe_mul: 200000 random inputs OK
+--- PASS: TestGPUFieldBinaryOps (0.34s)
+=== RUN   TestGPUFieldSqr
+    secp_field_test.go:191: fe_sqr: 200000 random inputs OK
+--- PASS: TestGPUFieldSqr (0.10s)
+=== RUN   TestGPUFieldNormalize
+    secp_field_test.go:234: fe_normalize: 200000 inputs OK (100000 were >= p)
+--- PASS: TestGPUFieldNormalize (0.07s)
+=== RUN   TestGPUFieldInverse
+    secp_field_test.go:268: fe_inv: 100000 random inputs OK
+--- PASS: TestGPUFieldInverse (0.19s)
+PASS

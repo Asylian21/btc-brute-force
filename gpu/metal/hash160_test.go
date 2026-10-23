@@ -35,7 +35,10 @@ func newHasherOrSkip(t testing.TB) *Hasher {
 	t.Helper()
 	h, err := New()
 	if err != nil {
-		t.Skipf("Metal unavailable: %v", err)
+		if err.Error() == "metal: no Metal device available" {
+			t.Skipf("Metal unavailable: %v", err)
+		}
+		t.Fatalf("Metal initialization failed: %v", err)
 	}
 	return h
 }

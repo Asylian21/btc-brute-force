@@ -203,3 +203,14 @@ int mh_dispatch(mh_ctx* ctx, void* queue, void* pipeline,
         return 0;
     }
 }
+
+int mh_dispatch_filter(mh_ctx* ctx, void* queue, void* pipeline,
+                       void* in, void* bloom, void* mcount, void* mdata,
+                       uint32_t stride, uint32_t count, uint32_t mask, uint32_t k) {
+    // These arrays stay on the C stack for the whole synchronous dispatch; the
+    // generic encoder has the identical argument layout and completion/error
+    // handling as every other kernel dispatch.
+    void* bufs[4] = {in, bloom, mcount, mdata};
+    uint32_t scalars[4] = {stride, count, mask, k};
+    return mh_dispatch(ctx, queue, pipeline, bufs, 4, scalars, 4, count);
+}

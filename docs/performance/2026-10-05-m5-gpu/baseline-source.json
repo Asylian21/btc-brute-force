@@ -1,0 +1,19 @@
+{
+  "root_commit": "1812418d9307943eb43854a9e102886462059b55",
+  "files": {
+    "bitcoin-wallet-bruteforce-offline.go": "68833198eb944569c5f1589e644e5950765a291918c9228d704f1f178f01a6d1",
+    "gpu/metal/hash160_test.go": "da0fa9cc16a1959f691b27ded2b70583310315aedb885fd6cf77cff91d0f1b18",
+    "gpu/metal/bridge.h": "3cd68fea016b14196c76fccdbc50b608dc44cb34a7e6750faf093ebf51b83f2c",
+    "gpu/metal/metal_darwin.go": "17dfba62db635a409322662f9b3009a8e1d681f0c8555eea2e4582bd05bb6f30",
+    "gpu/metal/ec_walk_test.go": "4d3e2591ecda9d19bcf5ffbcda96d4b44d7011c79cfd46e40b639d5e91c84ed4",
+    "gpu/metal/secp_field_test.go": "959dce428705f03f75054df74efd42c06260845c6b95d5a5311eed49158de1e7",
+    "gpu/metal/secp_field.metal": "e609a41bdc43f26ed81e75b2a8ac393210dadc582d3198d61229fad750e62778",
+    "gpu/metal/bridge.m": "1b4cc3bd3375f758fe7af2488fbe98bb2a9f73599da99c05df7dcbe9aba3e638",
+    "gpu/metal/harness_test.go": "9c0c3e0669c8849b100dba76f99d85b697a3a48815fa2727373fd2a523628496",
+    "gpu/metal/ec_walk.metal": "d68f0391cff579abbc1ebeb6d9ddaba5eacfbefb36cbf160859d7abc20994060",
+    "gpu/metal/hash160.metal": "b6e622d1dafb562c2111428ef1d0c9a2e14d1d09034ef81a644955267ffcafc6",
+    "gpu/metal/metal_stub.go": "fd851076baea1140d40ffafd89d763e2b91222d89b2a385fbf4f9ae9ae0fa5a3"
+  },
+  "toolchain": "go1.27.1",
+  "pgo": "off"
+}

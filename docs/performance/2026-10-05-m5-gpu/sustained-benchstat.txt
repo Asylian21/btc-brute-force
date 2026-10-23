@@ -1,0 +1,47 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/Asylian21/btc-brute-force
+cpu: Apple M5 Pro
+                                                    │ .local-perf/20261005-gpu/sustained-paired/before.txt │ .local-perf/20261005-gpu/sustained-paired/after.txt │
+                                                    │                        sec/op                        │               sec/op                vs base         │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                           789.3µ ± 10%                          764.6µ ± 6%  ~ (p=0.310 n=6)
+
+                                                    │ .local-perf/20261005-gpu/sustained-paired/before.txt │ .local-perf/20261005-gpu/sustained-paired/after.txt │
+                                                    │                     bloom_bytes                      │           bloom_bytes             vs base           │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                            262.1k ± 0%                        262.1k ± 0%  ~ (p=1.000 n=6) ¹
+¹ all samples are equal
+
+                                                    │ .local-perf/20261005-gpu/sustained-paired/before.txt │ .local-perf/20261005-gpu/sustained-paired/after.txt │
+                                                    │                 bloom_occupancy_pct                  │       bloom_occupancy_pct         vs base           │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                             49.72 ± 0%                         49.72 ± 0%  ~ (p=1.000 n=6) ¹
+¹ all samples are equal
+
+                                                    │ .local-perf/20261005-gpu/sustained-paired/before.txt │ .local-perf/20261005-gpu/sustained-paired/after.txt │
+                                                    │                     bloom_probes                     │           bloom_probes            vs base           │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                             22.00 ± 0%                         22.00 ± 0%  ~ (p=1.000 n=6) ¹
+¹ all samples are equal
+
+                                                    │ .local-perf/20261005-gpu/sustained-paired/before.txt │ .local-perf/20261005-gpu/sustained-paired/after.txt │
+                                                    │                 candidates/dispatch                  │        candidates/dispatch          vs base         │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                            151.4m ± 1%                          151.8m ± 0%  ~ (p=0.327 n=6)
+
+                                                    │ .local-perf/20261005-gpu/sustained-paired/before.txt │ .local-perf/20261005-gpu/sustained-paired/after.txt │
+                                                    │                   hashes/dispatch                    │         hashes/dispatch           vs base           │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                            393.2k ± 0%                        393.2k ± 0%  ~ (p=1.000 n=6) ¹
+¹ all samples are equal
+
+                                                    │ .local-perf/20261005-gpu/sustained-paired/before.txt │ .local-perf/20261005-gpu/sustained-paired/after.txt │
+                                                    │                       hashes/s                       │              hashes/s               vs base         │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                           498.2M ± 11%                          514.3M ± 6%  ~ (p=0.310 n=6)
+
+                                                    │ .local-perf/20261005-gpu/sustained-paired/before.txt │ .local-perf/20261005-gpu/sustained-paired/after.txt │
+                                                    │                       sec/hash                       │              sec/hash               vs base         │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                           2.007n ± 10%                          1.945n ± 6%  ~ (p=0.310 n=6)
+
+                                                    │ .local-perf/20261005-gpu/sustained-paired/before.txt │ .local-perf/20261005-gpu/sustained-paired/after.txt │
+                                                    │                         B/op                         │             B/op              vs base               │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                            129.00 ± 1%                     81.00 ± 1%  -37.21% (p=0.002 n=6)
+
+                                                    │ .local-perf/20261005-gpu/sustained-paired/before.txt │ .local-perf/20261005-gpu/sustained-paired/after.txt │
+                                                    │                      allocs/op                       │          allocs/op            vs base               │
+HybridGPUScan/p=18/chunks=4/tg=384/targets=65536-18                                             3.000 ± 0%                     1.000 ± 0%  -66.67% (p=0.002 n=6)
