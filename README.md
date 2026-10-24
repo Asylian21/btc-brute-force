@@ -119,7 +119,7 @@ state). Control it with `--gpu`:
 For the highest sustained throughput, prefer `--gpu=auto`: it re-tunes the
 dispatch on every launch, so it lands on a good configuration for your GPU and
 its temperature at that moment. `--gpu=on` skips the tune and uses the built-in
-defaults (4 chunks/dispatch, 384-thread threadgroup).
+defaults (2 chunks/dispatch, 128-thread threadgroup).
 
 Requirements: macOS on Apple Silicon, built natively with cgo (the default for
 `make build` / `make bench-gpu`). Other platforms — and the `make build-cpu`

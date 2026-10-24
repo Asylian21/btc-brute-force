@@ -1450,15 +1450,16 @@ const gpuSubBatchBaseBytes = keyBatchSize * pubStride
 // near-zero CPU confirm rate.
 const gpuBloomFPR = 1e-6
 
-// GPU dispatch defaults, measured as the saturation knee on Apple Silicon (an
-// M5 Pro 20-core GPU here): a 4-chunk dispatch (65,536 base points, 393,216
-// variant hashes) at a 384-thread threadgroup. Both are env-overridable
-// (BTC_GPU_CHUNKS, BTC_GPU_TG) and
-// --gpu=auto micro-sweeps around them to adapt to the actual device. A threadgroup
-// of 0 means "auto" (the bridge's min(maxThreadsPerThreadgroup, 256) rule).
+// GPU dispatch defaults, measured as the throughput knee on Apple Silicon (an
+// M5 Pro 20-core GPU here): a 2-chunk dispatch (32,768 base points, 196,608
+// variant hashes) at a 128-thread threadgroup (256 threadgroups per dispatch).
+// Both are env-overridable (BTC_GPU_CHUNKS, BTC_GPU_TG). A threadgroup of 0
+// means "auto" (the bridge's min(maxThreadsPerThreadgroup, 256) rule).
+// --gpu=auto micro-sweeps around them and keeps this incumbent unless a
+// candidate beats it by at least 3%.
 const (
-	gpuDefaultChunksPerDispatch = 4
-	gpuDefaultThreadgroup       = 384
+	gpuDefaultChunksPerDispatch = 2
+	gpuDefaultThreadgroup       = 128
 )
 
 // newKeyStreamForGPU builds a keyStream without its own pubBuf: the GPU producer
@@ -2506,14 +2507,15 @@ func main() {
 			gpuProducers = n
 		}
 	}
-	gpuChunksPerDispatch := gpuDefaultChunksPerDispatch // ~393k keys/dispatch: the GPU saturation knee on Apple Silicon
+	gpuChunksPerDispatch := gpuDefaultChunksPerDispatch // ~197k keys/dispatch: the measured GPU knee on Apple Silicon
 	if v := os.Getenv("BTC_GPU_CHUNKS"); v != "" {
 		if n, perr := strconv.Atoi(v); perr == nil && n > 0 {
 			gpuChunksPerDispatch = n
 		}
 	}
-	// Threadgroup size for the register-heavy GLV+Hash160 kernel (0 = auto). 384
-	// is the measured best on this machine; --gpu=auto refines it per device.
+	// Threadgroup size for the register-heavy GLV+Hash160 kernel (0 = auto). 128
+	// is the measured best at 2 chunks/dispatch on this machine; --gpu=auto
+	// refines it per device.
 	gpuThreadgroup := gpuDefaultThreadgroup
 	if v := os.Getenv("BTC_GPU_TG"); v != "" {
 		if n, perr := strconv.Atoi(v); perr == nil && n >= 0 {
